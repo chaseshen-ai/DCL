@@ -87,6 +87,7 @@ def auto_load_resume(load_dir):
 
 
 if __name__ == '__main__':
+
     args = parse_args()
     print(args, flush=True)
     Config = LoadConfig(args, 'train')
@@ -94,9 +95,12 @@ if __name__ == '__main__':
     Config.cls_2xmul = args.cls_mul
     assert Config.cls_2 ^ Config.cls_2xmul
 
-    transformers = load_data_transformers(args.resize_resolution, args.crop_resolution, args.swap_num)
 
-    # inital dataloader
+
+    transformers = load_data_transformers(args.resize_resolution, args.crop_resolution, args.swap_num)
+    ##################################
+    # Load dataset
+    ##################################
     train_set = dataset(Config = Config,\
                         anno = Config.train_anno,\
                         common_aug = transformers["common_aug"],\
