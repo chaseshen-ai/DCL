@@ -1,4 +1,5 @@
-# coding=utf8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 from __future__ import division
 import os
 import torch
@@ -7,6 +8,8 @@ import pandas
 import random
 import PIL.Image as Image
 from PIL import ImageStat
+
+
 
 import pdb
 
@@ -30,18 +33,34 @@ def random_sample(img_names, labels):
 
 
 class dataset(data.Dataset):
-    def __init__(self, Config, anno, swap_size=[7,7], common_aug=None, swap=None, totensor=None, train=False, train_val=False, test=False):
+    def __init__(self, Config, anno, swap_size=[7,7],common_aug=None, swap=None, totensor=None, train=False, train_val=False, test=False,val=False):
         self.root_path = Config.rawdata_root
         self.numcls = Config.numcls
         self.dataset = Config.dataset
         self.use_cls_2 = Config.cls_2
         self.use_cls_mul = Config.cls_2xmul
-        if isinstance(anno, pandas.core.frame.DataFrame):
-            self.paths = anno['ImageName'].tolist()
-            self.labels = anno['label'].tolist()
-        elif isinstance(anno, dict):
-            self.paths = anno['img_name']
-            self.labels = anno['label']
+        self.bbox=Config.bbox
+        if self.bbox:
+            if isinstance(anno, pandas.core.frame.DataFrame):
+                # a=anno['image_path'].tolist()
+                # self.paths =[i.encode('gbk') for i in a]
+                self.paths =anno['image_path'].tolist()
+                self.x0=anno['x0'].tolist()
+                self.x1=anno['x1'].tolist()
+                self.y0=anno['y0'].tolist()
+                self.y1=anno['y1'].tolist()
+                if not test:
+                    self.labels = anno['label'].tolist()
+            else:
+                print('Error: wrong dataset input')
+        else:
+            if isinstance(anno, pandas.core.frame.DataFrame):
+                self.paths = anno['ImageName'].tolist()
+                self.labels = anno['label'].tolist()
+            elif isinstance(anno, dict):
+                self.paths = anno['img_name']
+                self.labels = anno['label']
+
 
         if train_val:
             self.paths, self.labels = random_sample(self.paths, self.labels)
@@ -52,17 +71,34 @@ class dataset(data.Dataset):
         self.train = train
         self.swap_size = swap_size
         self.test = test
+        self.val = val
 
     def __len__(self):
         return len(self.paths)
 
     def __getitem__(self, item):
-        img_path = os.path.join(self.root_path, self.paths[item])
-        img = self.pil_loader(img_path)
-        if self.test:
+        if self.bbox:
+            img_path = self.paths[item]
+            img_path =img_path.encode('utf-8')
+            img = self.pil_loader(img_path)
+            x0=self.x0[item]
+            x1=min(self.x1[item],img.size[0])
+            y0=self.y0[item]
+            y1=min(self.y1[item],img.size[1])
+            if not x0==x1==y0==y1==0:
+                bbox=(x0,y0,x1,y1)
+                img=img.crop(bbox)
+            if self.test:
+                img = self.totensor(img)
+                return img, None,self.paths[item]
+        else:
+            img_path = os.path.join(self.root_path, self.paths[item])
+            img = self.pil_loader(img_path)
+        if self.val:
             img = self.totensor(img)
             label = self.labels[item]
             return img, label, self.paths[item]
+
         img_unswap = self.common_aug(img) if not self.common_aug is None else img
 
         image_unswap_list = self.crop_image(img_unswap, self.swap_size)
