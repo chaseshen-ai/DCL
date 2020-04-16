@@ -129,7 +129,7 @@ class LoadConfig(object):
             os.mkdir(self.save_dir)
         self.backbone = args.backbone
 
-        self.use_dcl = args.close_dcl
+        self.use_dcl = args.use_backbone
         self.use_backbone = False if self.use_dcl else True
         print("use dcl: %s" % self.use_dcl)
         print("use_backbone: %s" % self.use_backbone)
