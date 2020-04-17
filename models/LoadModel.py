@@ -27,7 +27,9 @@ class MainModel(nn.Module):
                 self.model = pretrainedmodels.__dict__[self.backbone_arch](num_classes=1000, pretrained=None)
             else:
                 self.model = pretrainedmodels.__dict__[self.backbone_arch](num_classes=1000)
-
+                
+        if self.backbone_arch == 'resnet18' :
+            self.model = nn.Sequential(*list(self.model.children())[:-2])
         if self.backbone_arch == 'resnet50' or self.backbone_arch == 'se_resnet50':
             self.model = nn.Sequential(*list(self.model.children())[:-2])
         if self.backbone_arch == 'senet154':
@@ -58,14 +60,16 @@ class MainModel(nn.Module):
             mask = torch.tanh(mask)
             mask = mask.view(mask.size(0), -1)
 
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
+
+        cls = self.avgpool(x)
+        cls = cls.view(cls.size(0), -1)
         out = []
-        out.append(self.classifier(x))
+        out.append(self.classifier(cls))
 
         if self.use_dcl:
-            out.append(self.classifier_swap(x))
+            out.append(self.classifier_swap(cls))
             out.append(mask)
+        out.append(x)
 
         if self.use_Asoftmax:
             if last_cont is None:

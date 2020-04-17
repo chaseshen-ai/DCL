@@ -195,9 +195,9 @@ if __name__ == '__main__':
         os.makedirs(save_dir)
 
     # tensorboardX add graph
-    # dummy_input = (torch.zeros(1, 3, 448, 448))
-    # outputs = model(dummy_input)
-    # sw.add_graph(model, dummy_input)
+    dummy_input = (torch.zeros(1, 3, args.crop_resolution, args.crop_resolution))
+    outputs = model(dummy_input)
+    sw.add_graph(model, dummy_input)
 
     model.cuda()
     model = nn.DataParallel(model)
