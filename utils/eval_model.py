@@ -17,7 +17,7 @@ import pdb
 def dt():
     return datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S")
 
-def eval_turn(Config, model, data_loader, val_version, epoch_num, log_file):
+def eval_turn(Config, model, data_loader, val_version, epoch_num):
 
     model.train(False)
 
@@ -69,7 +69,7 @@ def eval_turn(Config, model, data_loader, val_version, epoch_num, log_file):
         val_acc2 = val_corrects2 / item_count
         val_acc3 = val_corrects3 / item_count
 
-        log_file.write(val_version  + '\t' +str(val_loss_recorder.get_val())+'\t' + str(val_celoss_recorder.get_val()) + '\t' + str(val_acc1) + '\t' + str(val_acc3) + '\n')
+        # log_file.write(val_version  + '\t' +str(val_loss_recorder.get_val())+'\t' + str(val_celoss_recorder.get_val()) + '\t' + str(val_acc1) + '\t' + str(val_acc3) + '\n')
 
         t1 = time.time()
         since = t1-t0

@@ -10,12 +10,14 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 #from torchvision.utils import make_grid, save_image
-
+from transforms import transforms
 from utils.utils import LossRecord, clip_gradient
 from models.focal_loss import FocalLoss
 from utils.eval_model import eval_turn
 from utils.Asoftmax_loss import AngleLoss
-
+#from torch.utils.tensorboard import SummaryWriter
+from tensorboardX import SummaryWriter
+from torchvision import transforms
 import pdb
 
 def dt():
@@ -30,12 +32,17 @@ def train(Config,
           exp_lr_scheduler,
           data_loader,
           save_dir,
+          sw,
           data_size=448,
           savepoint=500,
           checkpoint=1000
           ):
     # savepoint: save without evalution
     # checkpoint: save with evaluation
+
+
+    best_prec1 = 0.
+
 
     step = 0
     eval_train_flag = False
@@ -51,7 +58,7 @@ def train(Config,
         checkpoint = savepoint
 
     date_suffix = dt()
-    log_file = open(os.path.join(Config.log_folder, 'formal_log_r50_dcl_%s_%s.log'%(str(data_size), date_suffix)), 'a')
+    # log_file = open(os.path.join(Config.log_folder, 'formal_log_r50_dcl_%s_%s.log'%(str(data_size), date_suffix)), 'a')
 
     add_loss = nn.L1Loss()
     get_ce_loss = nn.CrossEntropyLoss()
@@ -104,7 +111,8 @@ def train(Config,
 
             alpha_ = 1
             beta_ = 1
-            gamma_ = 0.01 if Config.dataset == 'STCAR' or Config.dataset == 'AIR' else 1
+            # gamma_ = 0.01 if Config.dataset == 'STCAR' or Config.dataset == 'AIR' else 1
+            gamma_ = 0.01
             if Config.use_dcl:
                 swap_loss = get_ce_loss(outputs[1], labels_swap) * beta_
                 loss += swap_loss
@@ -132,16 +140,20 @@ def train(Config,
                 print('step: {:d} / {:d} global_step: {:8.2f} train_epoch: {:04d} rec_train_loss: {:6.4f}'.format(step, train_epoch_step, 1.0*step/train_epoch_step, epoch, train_loss_recorder.get_val()), flush=True)
                 print('current lr:%s' % exp_lr_scheduler.get_lr(), flush=True)
                 if eval_train_flag:
-                    trainval_acc1, trainval_acc2, trainval_acc3 = eval_turn(Config, model, data_loader['trainval'], 'trainval', epoch, log_file)
+                    trainval_acc1, trainval_acc2, trainval_acc3 = eval_turn(Config, model, data_loader['trainval'], 'trainval', epoch)
                     if abs(trainval_acc1 - trainval_acc3) < 0.01:
                         eval_train_flag = False
 
-                val_acc1, val_acc2, val_acc3 = eval_turn(Config, model, data_loader['val'], 'val', epoch, log_file)
+                val_acc1, val_acc2, val_acc3 = eval_turn(Config, model, data_loader['val'], 'val', epoch)
+                is_best = val_acc1 > best_prec1
+                best_prec1 = max(val_acc1, best_prec1)
+                filename='weights_%d_%d_%.4f_%.4f.pth' % (epoch, batch_cnt, val_acc1, val_acc3)
 
-                save_path = os.path.join(save_dir, 'weights_%d_%d_%.4f_%.4f.pth'%(epoch, batch_cnt, val_acc1, val_acc3))
-                torch.cuda.synchronize()
-                torch.save(model.state_dict(), save_path)
-                print('saved model to %s' % (save_path), flush=True)
+                save_checkpoint(model.state_dict(), is_best, save_dir,filename)
+
+                sw.add_scalar("Train_Loss", loss.detach().item(), epoch)
+                sw.add_scalar("Val_Accurancy",val_acc1, epoch)
+                sw.add_scalar("learning_rate",exp_lr_scheduler.get_lr()[1] , epoch)
                 torch.cuda.empty_cache()
 
             # save only
@@ -158,7 +170,15 @@ def train(Config,
                 torch.cuda.empty_cache()
 
 
-    log_file.close()
+import shutil
+def save_checkpoint(state,is_best, path='checkpoint', filename='checkpoint.pth'):
 
-
-
+    if not os.path.exists(path):
+        os.makedirs(path)
+    full_path = os.path.join(path, filename)
+    torch.cuda.synchronize()
+    torch.save(state, full_path)
+    if is_best:
+        shutil.copyfile(full_path, os.path.join(path, 'model_best.pth'))
+        print("Save best model at %s " %
+              os.path.join(path, 'model_best.pth'))

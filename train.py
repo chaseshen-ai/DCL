@@ -1,4 +1,5 @@
-#coding=utf-8
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import os
 import datetime
 import argparse
@@ -19,17 +20,17 @@ from utils.train_model import train
 from models.LoadModel import MainModel
 from config import LoadConfig, load_data_transformers
 from utils.dataset_DCL import collate_fn4train, collate_fn4val, collate_fn4test, collate_fn4backbone, dataset
-
+from tensorboardX import SummaryWriter
 import pdb
 
 os.environ['CUDA_DEVICE_ORDRE'] = 'PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
 # parameters setting
 def parse_args():
     parser = argparse.ArgumentParser(description='dcl parameters')
     parser.add_argument('--data', dest='dataset',
-                        default='CUB', type=str)
+                        default='STCAR', type=str)
     parser.add_argument('--save', dest='resume',
                         default=None,
                         type=str)
@@ -69,9 +70,13 @@ def parse_args():
                         action='store_true')
     parser.add_argument('--cls_mul', dest='cls_mul',
                         action='store_true')
+    parser.add_argument('--use_backbone', dest='use_backbone',
+                        action='store_false')
     parser.add_argument('--swap_num', default=[7, 7],
                     nargs=2, metavar=('swap1', 'swap2'),
                     type=int, help='specify a range')
+    parser.add_argument('--log_dir', dest='log_dir',
+                        default='logs/log_info/', type=str)
     args = parser.parse_args()
     return args
 
@@ -87,20 +92,21 @@ def auto_load_resume(load_dir):
 
 
 if __name__ == '__main__':
-
     args = parse_args()
     print(args, flush=True)
     Config = LoadConfig(args, 'train')
     Config.cls_2 = args.cls_2
     Config.cls_2xmul = args.cls_mul
+    Config.log_dir = args.log_dir
     assert Config.cls_2 ^ Config.cls_2xmul
 
-
+    # sw define
+    sw_log = Config.log_dir
+    sw = SummaryWriter(log_dir=sw_log)
 
     transformers = load_data_transformers(args.resize_resolution, args.crop_resolution, args.swap_num)
-    ##################################
-    # Load dataset
-    ##################################
+
+    # inital dataloader
     train_set = dataset(Config = Config,\
                         anno = Config.train_anno,\
                         common_aug = transformers["common_aug"],\
@@ -121,7 +127,7 @@ if __name__ == '__main__':
                       common_aug = transformers["None"],\
                       swap = transformers["None"],\
                       totensor = transformers["test_totensor"],\
-                      test=True)
+                      val=True)
 
     dataloader = {}
     dataloader['train'] = torch.utils.data.DataLoader(train_set,\
@@ -187,6 +193,11 @@ if __name__ == '__main__':
     save_dir = os.path.join(Config.save_dir, filename)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
+
+    # tensorboardX add graph
+    dummy_input = (torch.zeros(1, 3, args.crop_resolution, args.crop_resolution))
+    outputs = model(dummy_input)
+    sw.add_graph(model, dummy_input)
 
     model.cuda()
     model = nn.DataParallel(model)

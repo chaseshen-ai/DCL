@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import os
 import pandas as pd
 import torch
@@ -6,7 +8,7 @@ from transforms import transforms
 from utils.autoaugment import ImageNetPolicy
 
 # pretrained model checkpoints
-pretrained_model = {'resnet50' : './models/pretrained/resnet50-19c8e357.pth',}
+pretrained_model = {'resnet50' : './models/resnet50-19c8e357.pth',}
 
 # transforms dict
 def load_data_transformers(resize_reso=512, crop_reso=448, swap_num=[7, 7]):
@@ -74,14 +76,19 @@ class LoadConfig(object):
             self.numcls = 200
         elif args.dataset == 'STCAR':
             self.dataset = args.dataset
-            self.rawdata_root = './dataset/st_car/data'
-            self.anno_root = './dataset/st_car/anno'
+            self.rawdata_root = '../Dataset/StanfordCars'
+            self.anno_root = './datasets/STCAR'
             self.numcls = 196
         elif args.dataset == 'AIR':
             self.dataset = args.dataset
             self.rawdata_root = './dataset/aircraft/data'
             self.anno_root = './dataset/aircraft/anno'
             self.numcls = 100
+        elif args.dataset =='ItargeCar':
+            self.dataset = args.dataset
+            self.rawdata_root = ''
+            self.anno_root = '../Dataset/ItargeCar/class'
+            self.numcls = 3202
         else:
             raise Exception('dataset not defined ???')
 
@@ -89,22 +96,31 @@ class LoadConfig(object):
         # path/image_name cls_num\n
 
         if 'train' in get_list:
-             self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_train.txt'),\
+            if self.dataset=='ItargeCar':
+                self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'train_info.csv'))
+            else:
+                self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_train.txt'),\
                                            sep=" ",\
                                            header=None,\
                                            names=['ImageName', 'label'])
 
         if 'val' in get_list:
-            self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_val.txt'),\
-                                           sep=" ",\
-                                           header=None,\
-                                           names=['ImageName', 'label'])
+            if self.dataset=='ItargeCar':
+                self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'val_info.csv'))
+            else:
+                self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_val.txt'),\
+                                               sep=" ",\
+                                               header=None,\
+                                               names=['ImageName', 'label'])
 
         if 'test' in get_list:
-            self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_test.txt'),\
-                                           sep=" ",\
-                                           header=None,\
-                                           names=['ImageName', 'label'])
+            if self.dataset=='ItargeCar':
+                self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'test_info.csv'))
+            else:
+                self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_test.txt'),\
+                                               sep=" ",\
+                                               header=None,\
+                                               names=['ImageName', 'label'])
 
         self.swap_num = args.swap_num
 
@@ -113,8 +129,10 @@ class LoadConfig(object):
             os.mkdir(self.save_dir)
         self.backbone = args.backbone
 
-        self.use_dcl = True
+        self.use_dcl = args.use_backbone
         self.use_backbone = False if self.use_dcl else True
+        print("use dcl: %s" % self.use_dcl)
+        print("use_backbone: %s" % self.use_backbone)
         self.use_Asoftmax = False
         self.use_focal_loss = False
         self.use_fpn = False
@@ -128,6 +146,9 @@ class LoadConfig(object):
         if not os.path.exists(self.log_folder):
             os.mkdir(self.log_folder)
 
-
+        if self.dataset == 'ItargeCar':
+            self.bbox=True
+        else:
+            self.bbox=False
 
 
