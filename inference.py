@@ -67,15 +67,44 @@ def parse_args():
                     action='store_false')
     parser.add_argument('--feature_map', dest='feature_map',
                     action='store_true')
+    parser.add_argument('--CAM', dest='CAM',
+                    action='store_true')
     parser.add_argument('--log_dir', dest='log_dir',
                         default='logs/log_info/image_test', type=str)
     args = parser.parse_args()
     return args
 
+def returnCAM(feature_conv, weight_softmax, class_idx,shape):
+    # generate the class activation maps upsample to 256x256
+    size_upsample = (shape[1], shape[0])
+    bz, nc, h, w = feature_conv.shape
+    output_cam = []
+    for i, idx in enumerate(class_idx):
+        cam = np.dot(weight_softmax[idx],feature_conv[i].reshape((nc, h*w)))
+        cam = cam.reshape(h, w)
+        cam = cam - np.min(cam)
+        cam_img = cam / np.max(cam)
+        cam_img = np.uint8(255 * cam_img)
+        output_cam.append(cv2.resize(cam_img, size_upsample))
+    return output_cam
+
+def return_single_CAM(feature_conv, weight_softmax, class_idx,shape):
+    # generate the class activation maps upsample to 256x256
+    size_upsample = (shape[1], shape[0])
+    nc, h, w = feature_conv.shape
+    cam = np.dot(weight_softmax[class_idx],feature_conv.reshape((nc, h*w)))
+    cam = cam.reshape(h, w)
+    cam = cam - np.min(cam)
+    cam_img = cam / np.max(cam)
+    cam_img = np.uint8(255 * cam_img)
+    return cv2.resize(cam_img, size_upsample)
+
+
 if __name__ == '__main__':
     args = parse_args()
     print(args)
-
+    if args.CAM:
+        args.feature_map=True
     if args.version=='test':
         image_list = "/NAS/shenjintong/Dataset/ItargeCar/class/test_info.csv"
     else:
@@ -122,11 +151,16 @@ if __name__ == '__main__':
     outputs = model(dummy_input)
     sw.add_graph(model, dummy_input)
 
+    params=list(model.parameters())
+    weight_softmax = np.squeeze(params[-3].data.numpy())
+
     model.cuda()
     model = nn.DataParallel(model)
-
-
     model.train(False)
+
+
+    std = [0.229, 0.224, 0.225]
+    mean = [0.485, 0.456, 0.406]
 
     Total_time=0.0
     with torch.no_grad():
@@ -151,13 +185,32 @@ if __name__ == '__main__':
             two_outputs_pred = outputs[0] + outputs[1][:,0:Config.numcls] + outputs[1][:,Config.numcls:2*Config.numcls]
             outputs_pred = outputs[0]
 
+            two_outputs_pred=F.softmax(two_outputs_pred)
+            outputs_pred=F.softmax(outputs_pred)
+            two_outputs_confidence_, two_outputs_predicted = torch.max(two_outputs_pred, 1)
+            outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
+            # args.CAM=True
+            # args.feature_map=True
             if args.feature_map:
                 # visualization of the feature maps
-                img = cv2.imread(img_name[image_in_batch])
-                heatmap = outputs[3].cpu().numpy()[image_in_batch][channal]
-                # heatmap = np.mean(outputs[3].cpu().numpy()[image_in_batch], axis=0, keepdims=False)
-                heatmap = (heatmap / np.max(heatmap) * 255.0).astype(np.uint8)
-                heatmap = cv2.resize(heatmap,(img.shape[1],img.shape[0]))
+                image=cv2.imread(img_name[0]) # h,w,c
+                img=inputs.cpu()
+                img[0] = img[0] * std[0] + mean[0]
+                img[1] = img[1] * std[1] + mean[1]
+                img[2] = img[2].mul(std[2]) + mean[2]
+                img = img.mul(255).byte()
+                img=img.numpy()[image_in_batch].transpose((1, 2, 0))
+
+                img=cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
+                if args.CAM:
+                    # heatmaps = returnCAM(outputs[3].cpu().numpy(), weight_softmax, outputs_predicted,img.shape)
+                    # heatmap =heatmaps[image_in_batch]
+                    heatmap = return_single_CAM(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, outputs_predicted[image_in_batch],img.shape)
+                else:
+                    heatmap = outputs[3].cpu().numpy()[image_in_batch][channal]
+                    # heatmap = np.mean(outputs[3].cpu().numpy()[image_in_batch], axis=0, keepdims=False)
+                    heatmap = (heatmap / np.max(heatmap) * 255.0).astype(np.uint8)
+                    heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
 
                 color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
                 attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
@@ -165,11 +218,6 @@ if __name__ == '__main__':
                 attention_image = attention_image.transpose((2, 0, 1))
                 sw.add_image('attention_image', attention_image)
 
-
-            two_outputs_pred=F.softmax(two_outputs_pred)
-            outputs_pred=F.softmax(outputs_pred)
-            two_outputs_confidence_, two_outputs_predicted = torch.max(two_outputs_pred, 1)
-            outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
 
             # print(time.time()-T1)
             Total_time+=time.time()-T1
