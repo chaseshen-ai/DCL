@@ -151,4 +151,5 @@ class LoadConfig(object):
         else:
             self.bbox=False
 
+        self.no_bbox=args.no_bbox
 

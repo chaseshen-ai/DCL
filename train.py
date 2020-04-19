@@ -72,6 +72,8 @@ def parse_args():
                         action='store_true')
     parser.add_argument('--use_backbone', dest='use_backbone',
                         action='store_false')
+    parser.add_argument('--no_bbox', dest='no_bbox',
+                    action='store_false')
     parser.add_argument('--swap_num', default=[7, 7],
                     nargs=2, metavar=('swap1', 'swap2'),
                     type=int, help='specify a range')
