@@ -46,11 +46,11 @@ class dataset(data.Dataset):
                 # a=anno['image_path'].tolist()
                 # self.paths =[i.encode('gbk') for i in a]
                 self.paths =anno['image_path'].tolist()
-
-                self.x0=anno['x0'].tolist()
-                self.x1=anno['x1'].tolist()
-                self.y0=anno['y0'].tolist()
-                self.y1=anno['y1'].tolist()
+                if not self.no_bbox:
+                    self.x0=anno['x0'].tolist()
+                    self.x1=anno['x1'].tolist()
+                    self.y0=anno['y0'].tolist()
+                    self.y1=anno['y1'].tolist()
                 if not test:
                     self.labels = anno['label'].tolist()
             else:

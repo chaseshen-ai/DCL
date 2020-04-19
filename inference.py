@@ -74,9 +74,9 @@ def parse_args():
     parser.add_argument('--CAM', dest='CAM',
                     action='store_true')
     parser.add_argument('--no_bbox', dest='no_bbox',
-                    action='store_false')
+                    action='store_true')
     parser.add_argument('--not_default_dataset', dest='not_default',
-                    action='store_false')
+                    action='store_true')
     parser.add_argument('--log_dir', dest='log_dir',
                         default='logs/log_info/image_test', type=str)
     args = parser.parse_args()
@@ -205,7 +205,7 @@ if __name__ == '__main__':
                 # img[2] = img[2].mul(std[2]) + mean[2]
                 # img = img.mul(255).byte()
                 # img=img.numpy()[image_in_batch].transpose((1, 2, 0))
-                if args.no_bbox:
+                if not args.no_bbox:
                     img=img[data_set.y0[count]: data_set.y1[count], data_set.x0[count]: data_set.x1[count]]
 
                 # img=cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
