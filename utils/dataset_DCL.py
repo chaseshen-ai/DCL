@@ -39,12 +39,14 @@ class dataset(data.Dataset):
         self.dataset = Config.dataset
         self.use_cls_2 = Config.cls_2
         self.use_cls_mul = Config.cls_2xmul
+        self.no_bbox=Config.no_bbox
         self.bbox=Config.bbox
         if self.bbox:
             if isinstance(anno, pandas.core.frame.DataFrame):
                 # a=anno['image_path'].tolist()
                 # self.paths =[i.encode('gbk') for i in a]
                 self.paths =anno['image_path'].tolist()
+
                 self.x0=anno['x0'].tolist()
                 self.x1=anno['x1'].tolist()
                 self.y0=anno['y0'].tolist()
@@ -81,16 +83,18 @@ class dataset(data.Dataset):
             img_path = self.paths[item]
             img_path =img_path.encode('utf-8')
             img = self.pil_loader(img_path)
-            x0=self.x0[item]
-            x1=min(self.x1[item],img.size[0])
-            y0=self.y0[item]
-            y1=min(self.y1[item],img.size[1])
-            if not x0==x1==y0==y1==0:
-                bbox=(x0,y0,x1,y1)
-                img=img.crop(bbox)
+            if not self.no_bbox:
+                x0=self.x0[item]
+                x1=min(self.x1[item],img.size[0])
+                y0=self.y0[item]
+                y1=min(self.y1[item],img.size[1])
+                if not x0==x1==y0==y1==0:
+                    bbox=(x0,y0,x1,y1)
+                    img=img.crop(bbox)
             if self.test:
                 img = self.totensor(img)
                 return img, None,self.paths[item]
+
         else:
             img_path = os.path.join(self.root_path, self.paths[item])
             img = self.pil_loader(img_path)

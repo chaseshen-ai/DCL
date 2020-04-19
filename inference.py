@@ -69,6 +69,8 @@ def parse_args():
                     action='store_true')
     parser.add_argument('--CAM', dest='CAM',
                     action='store_true')
+    parser.add_argument('--no_bbox', dest='no_bbox',
+                    action='store_false')
     parser.add_argument('--log_dir', dest='log_dir',
                         default='logs/log_info/image_test', type=str)
     args = parser.parse_args()
@@ -189,19 +191,16 @@ if __name__ == '__main__':
             outputs_pred=F.softmax(outputs_pred)
             two_outputs_confidence_, two_outputs_predicted = torch.max(two_outputs_pred, 1)
             outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
-            # args.CAM=True
-            # args.feature_map=True
+            args.CAM=True
+            args.feature_map=True
             if args.feature_map:
                 # visualization of the feature maps
-                image=cv2.imread(img_name[0]) # h,w,c
-                img=inputs.cpu()
-                img[0] = img[0] * std[0] + mean[0]
-                img[1] = img[1] * std[1] + mean[1]
-                img[2] = img[2].mul(std[2]) + mean[2]
-                img = img.mul(255).byte()
-                img=img.numpy()[image_in_batch].transpose((1, 2, 0))
-
-                img=cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
+                img=cv2.imread(img_name[image_in_batch]) # h,w,c
+                # img=inputs.cpu()
+                # img =img *std + mean
+                # img = img.mul(255).byte()
+                # img=img.numpy()[image_in_batch].transpose((1, 2, 0))
+                # img=cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
                 if args.CAM:
                     # heatmaps = returnCAM(outputs[3].cpu().numpy(), weight_softmax, outputs_predicted,img.shape)
                     # heatmap =heatmaps[image_in_batch]
