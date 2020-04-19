@@ -49,9 +49,9 @@ def parse_args():
     parser.add_argument('--ver', dest='version',
                         default='test', type=str)
     parser.add_argument('--save', dest='resume',
-                        default="/NAS/shenjintong/DCL/net_model/training_descibe_41123_ItargeCar/model_best.pth", type=str)
+                        default="/home/chase/model/pytorch/DCL/Itarge_car/ResNet50_Itarge.pth", type=str)
     parser.add_argument('--anno', dest='anno',
-                        default="/NAS/shenjintong/DCL/net_model/training_descibe_41123_ItargeCar/model_best.pth", type=str)
+                        default="/home/chase/PycharmProjects/Dataset/DCL/test_info.csv", type=str)
     parser.add_argument('--result_path', dest='result_path',
                         default="/NAS/shenjintong/Dataset/ItargeCar/Result/DCL/raw_result/", type=str)
     parser.add_argument('--save_name', dest='save_name',
@@ -82,6 +82,26 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
+def CAM_test(feature_conv, weight_softmax,shape,sw):
+    # 挑选不同类别的图片进行验证，测试每张图在输入类别中的个数
+    class_idx=[512,786,1078,1303,1869,1083,967,539,395,480,604,841]
+    size_upsample = (shape[1], shape[0])
+    nc, h, w = feature_conv.shape
+    for i, idx in enumerate(class_idx):
+        cam = np.dot(weight_softmax[idx],feature_conv.reshape((nc, h*w)))
+        cam = cam.reshape(h, w)
+        cam = cam - np.min(cam)
+        cam_img = cam / np.max(cam)
+        cam_img = np.uint8(255 * cam_img)
+        heatmap = cv2.resize(cam_img, size_upsample)
+        color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
+        attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
+        attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
+        attention_image = attention_image.transpose((2, 0, 1))
+        sw.add_image('attention_image', attention_image)
+
+
 def returnCAM(feature_conv, weight_softmax, class_idx,shape):
     # generate the class activation maps upsample to 256x256
     size_upsample = (shape[1], shape[0])
@@ -96,7 +116,7 @@ def returnCAM(feature_conv, weight_softmax, class_idx,shape):
         output_cam.append(cv2.resize(cam_img, size_upsample))
     return output_cam
 
-def return_single_CAM(feature_conv, weight_softmax, class_idx,shape):
+def return_single_CAM(feature_conv, weight_softmax, class_idx,shape,sw):
     # generate the class activation maps upsample to 256x256
     size_upsample = (shape[1], shape[0])
     nc, h, w = feature_conv.shape
@@ -105,11 +125,22 @@ def return_single_CAM(feature_conv, weight_softmax, class_idx,shape):
     cam = cam - np.min(cam)
     cam_img = cam / np.max(cam)
     cam_img = np.uint8(255 * cam_img)
-    return cv2.resize(cam_img, size_upsample)
+    heatmap=cv2.resize(cam_img, size_upsample)
+    color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
+    attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
+    attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
+    attention_image = attention_image.transpose((2, 0, 1))
+    sw.add_image('attention_image', attention_image)
+
 
 
 if __name__ == '__main__':
     args = parse_args()
+
+    # # todo debug
+    # args.not_default=True
+    # args.no_bbox = True
+
     print(args)
     if args.CAM:
         args.feature_map=True
@@ -150,13 +181,19 @@ if __name__ == '__main__':
     model_dict.update(pretrained_dict)
     model.load_state_dict(model_dict)
 
+    # add tensorboard graph of structure
     dummy_input = (torch.zeros(1, 3, args.crop_resolution, args.crop_resolution))
     outputs = model(dummy_input)
     sw.add_graph(model, dummy_input)
 
-    params=list(model.parameters())
-    weight_softmax = np.squeeze(params[-3].data.numpy())
 
+    # get weight of feature 3202*2048, DCL 对应着－４层全职，ResNet50 对应着
+    params=list(model.parameters())
+    weight_softmax = np.squeeze(params[-4].data.numpy())
+
+    # # output the weight
+    # weight_output = pd.DataFrame(weight_softmax, index=[i for i in range(3202)])
+    # weight_output.to_csv("weight.csv")
     model.cuda()
     model = nn.DataParallel(model)
     model.train(False)
@@ -193,8 +230,12 @@ if __name__ == '__main__':
             outputs_pred=F.softmax(outputs_pred)
             two_outputs_confidence_, two_outputs_predicted = torch.max(two_outputs_pred, 1)
             outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
+
+            # # todo debug
             # args.CAM=True
             # args.feature_map=True
+
+
             count=batch_cnt_val*args.batch_size+image_in_batch
             if args.feature_map:
                 # visualization of the feature maps
@@ -212,18 +253,18 @@ if __name__ == '__main__':
                 if args.CAM:
                     # heatmaps = returnCAM(outputs[3].cpu().numpy(), weight_softmax, outputs_predicted,img.shape)
                     # heatmap =heatmaps[image_in_batch]
-                    heatmap = return_single_CAM(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, outputs_predicted[image_in_batch],img.shape)
+                    # heatmap = return_single_CAM(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, outputs_predicted[image_in_batch],img.shape,sw)
+                    CAM_test(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, img.shape, sw)
                 else:
                     heatmap = outputs[3].cpu().numpy()[image_in_batch][channal]
                     # heatmap = np.mean(outputs[3].cpu().numpy()[image_in_batch], axis=0, keepdims=False)
                     heatmap = (heatmap / np.max(heatmap) * 255.0).astype(np.uint8)
                     heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
-
-                color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
-                attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
-                attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
-                attention_image = attention_image.transpose((2, 0, 1))
-                sw.add_image('attention_image', attention_image)
+                    color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
+                    attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
+                    attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
+                    attention_image = attention_image.transpose((2, 0, 1))
+                    sw.add_image('attention_image', attention_image)
 
 
             # print(time.time()-T1)
