@@ -97,7 +97,8 @@ class LoadConfig(object):
 
         if 'train' in get_list:
             if self.dataset=='ItargeCar':
-                self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'train_info.csv'))
+                if args.not_default:
+                    self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'train_info.csv'))
             else:
                 self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_train.txt'),\
                                            sep=" ",\
@@ -106,7 +107,8 @@ class LoadConfig(object):
 
         if 'val' in get_list:
             if self.dataset=='ItargeCar':
-                self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'val_info.csv'))
+                if args.not_default:
+                    self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'val_info.csv'))
             else:
                 self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_val.txt'),\
                                                sep=" ",\
@@ -115,7 +117,8 @@ class LoadConfig(object):
 
         if 'test' in get_list:
             if self.dataset=='ItargeCar':
-                self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'test_info.csv'))
+                if args.not_default:
+                    self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'test_info.csv'))
             else:
                 self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_test.txt'),\
                                                sep=" ",\

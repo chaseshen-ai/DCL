@@ -50,6 +50,10 @@ def parse_args():
                         default='test', type=str)
     parser.add_argument('--save', dest='resume',
                         default="/NAS/shenjintong/DCL/net_model/training_descibe_41123_ItargeCar/model_best.pth", type=str)
+    parser.add_argument('--anno', dest='anno',
+                        default="/NAS/shenjintong/DCL/net_model/training_descibe_41123_ItargeCar/model_best.pth", type=str)
+    parser.add_argument('--result_path', dest='result_path',
+                        default="/NAS/shenjintong/Dataset/ItargeCar/Result/DCL/raw_result/", type=str)
     parser.add_argument('--save_name', dest='save_name',
                         default=None, type=str)
     parser.add_argument('--size', dest='resize_resolution',
@@ -70,6 +74,8 @@ def parse_args():
     parser.add_argument('--CAM', dest='CAM',
                     action='store_true')
     parser.add_argument('--no_bbox', dest='no_bbox',
+                    action='store_false')
+    parser.add_argument('--not_default_dataset', dest='not_default',
                     action='store_false')
     parser.add_argument('--log_dir', dest='log_dir',
                         default='logs/log_info/image_test', type=str)
@@ -107,14 +113,9 @@ if __name__ == '__main__':
     print(args)
     if args.CAM:
         args.feature_map=True
-    if args.version=='test':
-        image_list = "/NAS/shenjintong/Dataset/ItargeCar/class/test_info.csv"
-    else:
-        image_list = "/NAS/shenjintong/Dataset/ItargeCar/class/val_info.csv"
 
-    base_path="/NAS/shenjintong/Dataset/ItargeCar/Result/DCL/raw_result/"
-
-    dataset_pd = pd.read_csv(image_list)
+    # 由于args.version的作用只是自动选择对应的标记文件进行读取，去除version设置直接使用文件路径输入
+    dataset_pd = pd.read_csv(args.anno)
 
     Config = LoadConfig(args, args.version)
     Config.cls_2xmul = True
@@ -124,10 +125,10 @@ if __name__ == '__main__':
     sw_log = args.log_dir
     sw = SummaryWriter(log_dir=sw_log)
 
-
     transformers = load_data_transformers(args.resize_resolution, args.crop_resolution, args.swap_num)
+
     data_set = dataset(Config,\
-                       anno=Config.val_anno if args.version == 'val' else Config.test_anno ,\
+                       anno=dataset_pd,\
                        swap=transformers["None"],\
                        totensor=transformers['test_totensor'],\
                        test=True)
@@ -173,6 +174,7 @@ if __name__ == '__main__':
         val_size = ceil(len(data_set) / dataloader.batch_size)
         result_gather = {}
         count_bar = tqdm(total=dataloader.__len__())
+        count = 0
         for batch_cnt_val, data_val in enumerate(dataloader):
 
             image_in_batch=0
@@ -191,15 +193,21 @@ if __name__ == '__main__':
             outputs_pred=F.softmax(outputs_pred)
             two_outputs_confidence_, two_outputs_predicted = torch.max(two_outputs_pred, 1)
             outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
-            args.CAM=True
-            args.feature_map=True
+            # args.CAM=True
+            # args.feature_map=True
+            count=batch_cnt_val*args.batch_size+image_in_batch
             if args.feature_map:
                 # visualization of the feature maps
                 img=cv2.imread(img_name[image_in_batch]) # h,w,c
                 # img=inputs.cpu()
-                # img =img *std + mean
+                # img[0] = img[0] * std[0] + mean[0]
+                # img[1] = img[1] * std[1] + mean[1]
+                # img[2] = img[2].mul(std[2]) + mean[2]
                 # img = img.mul(255).byte()
                 # img=img.numpy()[image_in_batch].transpose((1, 2, 0))
+                if args.no_bbox:
+                    img=img[data_set.y0[count]: data_set.y1[count], data_set.x0[count]: data_set.x1[count]]
+
                 # img=cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
                 if args.CAM:
                     # heatmaps = returnCAM(outputs[3].cpu().numpy(), weight_softmax, outputs_predicted,img.shape)
@@ -238,10 +246,7 @@ if __name__ == '__main__':
 
 
         if args.save_name:
-            save_path = os.path.join(base_path, args.version + "_" + args.save_name)
+            save_path = os.path.join(args.result_path, args.save_name)
+            dataset_pd.to_csv(save_path)
 
-            if args.version == 'test':
-                dataset_pd.to_csv(save_path)
-            else:
-                dataset_pd.to_csv(save_path)
 
