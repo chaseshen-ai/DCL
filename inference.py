@@ -49,7 +49,7 @@ def parse_args():
     parser.add_argument('--ver', dest='version',
                         default='test', type=str)
     parser.add_argument('--save', dest='resume',
-                        default="/home/chase/model/pytorch/DCL/Itarge_car/ResNet50_Itarge.pth", type=str)
+                        default="/NAS/shenjintong/DCL/net_model/training_descibe_41123_ItargeCar/model_best.pth", type=str)
     parser.add_argument('--anno', dest='anno',
                         default="/home/chase/PycharmProjects/Dataset/DCL/test_info.csv", type=str)
     parser.add_argument('--result_path', dest='result_path',
@@ -97,6 +97,7 @@ def CAM_test(feature_conv, weight_softmax,shape,sw):
         heatmap = cv2.resize(cam_img, size_upsample)
         color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
         attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
+        cv2.imwrite('imgs/test_%d_%d.jpg' % (i, idx), attention_image)
         attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
         attention_image = attention_image.transpose((2, 0, 1))
         sw.add_image('attention_image', attention_image)
@@ -137,16 +138,9 @@ def return_single_CAM(feature_conv, weight_softmax, class_idx,shape,sw):
 if __name__ == '__main__':
     args = parse_args()
 
-    # # todo debug
-    # args.not_default=True
-    # args.no_bbox = True
-
     print(args)
     if args.CAM:
         args.feature_map=True
-
-    # 由于args.version的作用只是自动选择对应的标记文件进行读取，去除version设置直接使用文件路径输入
-    dataset_pd = pd.read_csv(args.anno)
 
     Config = LoadConfig(args, args.version)
     Config.cls_2xmul = True
@@ -157,6 +151,12 @@ if __name__ == '__main__':
     sw = SummaryWriter(log_dir=sw_log)
 
     transformers = load_data_transformers(args.resize_resolution, args.crop_resolution, args.swap_num)
+
+    # 由于args.version的作用只是自动选择对应的标记文件进行读取，去除version设置直接使用文件路径输入
+    if args.not_default:
+        dataset_pd = pd.read_csv(args.anno)
+    else:
+        dataset_pd = Config.val_anno if args.version == 'val' else Config.test_anno
 
     data_set = dataset(Config,\
                        anno=dataset_pd,\
@@ -189,11 +189,8 @@ if __name__ == '__main__':
 
     # get weight of feature 3202*2048, DCL 对应着－４层全职，ResNet50 对应着
     params=list(model.parameters())
-    weight_softmax = np.squeeze(params[-4].data.numpy())
+    weight_softmax = np.squeeze(params[-3].data.numpy())
 
-    # # output the weight
-    # weight_output = pd.DataFrame(weight_softmax, index=[i for i in range(3202)])
-    # weight_output.to_csv("weight.csv")
     model.cuda()
     model = nn.DataParallel(model)
     model.train(False)
@@ -230,12 +227,8 @@ if __name__ == '__main__':
             outputs_pred=F.softmax(outputs_pred)
             two_outputs_confidence_, two_outputs_predicted = torch.max(two_outputs_pred, 1)
             outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
-
-            # # todo debug
             # args.CAM=True
             # args.feature_map=True
-
-
             count=batch_cnt_val*args.batch_size+image_in_batch
             if args.feature_map:
                 # visualization of the feature maps
@@ -247,8 +240,8 @@ if __name__ == '__main__':
                 # img = img.mul(255).byte()
                 # img=img.numpy()[image_in_batch].transpose((1, 2, 0))
                 if not args.no_bbox:
-                    img=img[data_set.y0[count]: data_set.y1[count], data_set.x0[count]: data_set.x1[count]]
-
+                    if not data_set.y0[count]==data_set.y1[count]==data_set.x0[count]==data_set.x1[count]==0:
+                        img=img[data_set.y0[count]: data_set.y1[count], data_set.x0[count]: data_set.x1[count]]
                 # img=cv2.cvtColor(img,cv2.COLOR_RGB2BGR)
                 if args.CAM:
                     # heatmaps = returnCAM(outputs[3].cpu().numpy(), weight_softmax, outputs_predicted,img.shape)

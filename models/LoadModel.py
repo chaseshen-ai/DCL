@@ -13,6 +13,7 @@ class MainModel(nn.Module):
     def __init__(self, config):
         super(MainModel, self).__init__()
         self.use_dcl = config.use_dcl
+        self.no_loc=config.no_loc
         self.num_classes = config.numcls
         self.backbone_arch = config.backbone
         self.use_Asoftmax = config.use_Asoftmax
@@ -46,7 +47,8 @@ class MainModel(nn.Module):
                 self.classifier_swap = nn.Linear(2048, 2, bias=False)
             if config.cls_2xmul:
                 self.classifier_swap = nn.Linear(2048, 2*self.num_classes, bias=False)
-            self.Convmask = nn.Conv2d(2048, 1, 1, stride=1, padding=0, bias=True)
+            if not self.no_loc:
+                self.Convmask = nn.Conv2d(2048, 1, 1, stride=1, padding=0, bias=True)
             self.avgpool2 = nn.AvgPool2d(2, stride=2)
 
         if self.use_Asoftmax:
@@ -55,10 +57,11 @@ class MainModel(nn.Module):
     def forward(self, x, last_cont=None):
         x = self.model(x)
         if self.use_dcl:
-            mask = self.Convmask(x)
-            mask = self.avgpool2(mask)
-            mask = torch.tanh(mask)
-            mask = mask.view(mask.size(0), -1)
+            if not self.no_loc:
+                mask = self.Convmask(x)
+                mask = self.avgpool2(mask)
+                mask = torch.tanh(mask)
+                mask = mask.view(mask.size(0), -1)
 
 
         cls = self.avgpool(x)
@@ -68,7 +71,8 @@ class MainModel(nn.Module):
 
         if self.use_dcl:
             out.append(self.classifier_swap(cls))
-            out.append(mask)
+            if not self.no_loc:
+                out.append(mask)
         out.append(x)
 
         if self.use_Asoftmax:

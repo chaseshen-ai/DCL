@@ -81,7 +81,6 @@ def train(Config,
 
             if Config.use_dcl:
                 inputs, labels, labels_swap, swap_law, img_names = data
-
                 inputs = Variable(inputs.cuda())
                 labels = Variable(torch.from_numpy(np.array(labels)).cuda())
                 labels_swap = Variable(torch.from_numpy(np.array(labels_swap)).cuda())
@@ -116,8 +115,9 @@ def train(Config,
             if Config.use_dcl:
                 swap_loss = get_ce_loss(outputs[1], labels_swap) * beta_
                 loss += swap_loss
-                law_loss = add_loss(outputs[2], swap_law) * gamma_
-                loss += law_loss
+                if not Config.no_loc:
+                    law_loss = add_loss(outputs[2], swap_law) * gamma_
+                    loss += law_loss
 
             loss.backward()
             torch.cuda.synchronize()
@@ -126,7 +126,10 @@ def train(Config,
             torch.cuda.synchronize()
 
             if Config.use_dcl:
-                print('step: {:-8d} / {:d} loss=ce_loss+swap_loss+law_loss: {:6.4f} = {:6.4f} + {:6.4f} + {:6.4f} '.format(step, train_epoch_step, loss.detach().item(), ce_loss.detach().item(), swap_loss.detach().item(), law_loss.detach().item()), flush=True)
+                if Config.no_loc:
+                    print('step: {:-8d} / {:d} loss=ce_loss+swap_loss+law_loss: {:6.4f} = {:6.4f} + {:6.4f} '.format(step, train_epoch_step, loss.detach().item(), ce_loss.detach().item(),swap_loss.detach().item()), flush=True)
+                else:
+                    print('step: {:-8d} / {:d} loss=ce_loss+swap_loss+law_loss: {:6.4f} = {:6.4f} + {:6.4f} + {:6.4f} '.format(step, train_epoch_step, loss.detach().item(), ce_loss.detach().item(), swap_loss.detach().item(), law_loss.detach().item()), flush=True)
             if Config.use_backbone:
                 print('step: {:-8d} / {:d} loss=ce_loss+swap_loss+law_loss: {:6.4f} = {:6.4f} '.format(step, train_epoch_step, loss.detach().item(), ce_loss.detach().item()), flush=True)
             rec_loss.append(loss.detach().item())

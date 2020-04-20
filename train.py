@@ -73,7 +73,11 @@ def parse_args():
     parser.add_argument('--use_backbone', dest='use_backbone',
                         action='store_false')
     parser.add_argument('--no_bbox', dest='no_bbox',
-                    action='store_false')
+                    action='store_true')
+    parser.add_argument('--not_default_dataset', dest='not_default',
+                    action='store_true')
+    parser.add_argument('--no_loc', dest='no_loc',
+                    action='store_true')
     parser.add_argument('--swap_num', default=[7, 7],
                     nargs=2, metavar=('swap1', 'swap2'),
                     type=int, help='specify a range')
@@ -100,9 +104,11 @@ if __name__ == '__main__':
     Config.cls_2 = args.cls_2
     Config.cls_2xmul = args.cls_mul
     Config.log_dir = args.log_dir
+    Config.no_loc = args.no_loc
     assert Config.cls_2 ^ Config.cls_2xmul
 
     # sw define
+    sw_log = Config.log_dir
     sw_log = Config.log_dir
     sw = SummaryWriter(log_dir=sw_log)
 
@@ -210,9 +216,13 @@ if __name__ == '__main__':
     else:
         ignored_params1 = list(map(id, model.module.classifier.parameters()))
         ignored_params2 = list(map(id, model.module.classifier_swap.parameters()))
-        ignored_params3 = list(map(id, model.module.Convmask.parameters()))
+        if not args.no_loc:
+            ignored_params3 = list(map(id, model.module.Convmask.parameters()))
+            ignored_params = ignored_params1 + ignored_params2 + ignored_params3
+        else:
+            ignored_params = ignored_params1 + ignored_params2
 
-        ignored_params = ignored_params1 + ignored_params2 + ignored_params3
+
     print('the num of new layers:', len(ignored_params), flush=True)
     base_params = filter(lambda p: id(p) not in ignored_params, model.module.parameters())
 
@@ -222,11 +232,17 @@ if __name__ == '__main__':
         optimizer = optim.SGD([{'params': base_params},
                                {'params': model.module.classifier.parameters(), 'lr': base_lr}], lr = base_lr, momentum=0.9)
     else:
-        optimizer = optim.SGD([{'params': base_params},
-                               {'params': model.module.classifier.parameters(), 'lr': lr_ratio*base_lr},
-                               {'params': model.module.classifier_swap.parameters(), 'lr': lr_ratio*base_lr},
-                               {'params': model.module.Convmask.parameters(), 'lr': lr_ratio*base_lr},
-                              ], lr = base_lr, momentum=0.9)
+        if args.no_loc:
+            optimizer = optim.SGD([{'params': base_params},
+                                   {'params': model.module.classifier.parameters(), 'lr': lr_ratio*base_lr},
+                                   {'params': model.module.classifier_swap.parameters(), 'lr': lr_ratio*base_lr},
+                                  ], lr = base_lr, momentum=0.9)
+        else:
+            optimizer = optim.SGD([{'params': base_params},
+                                   {'params': model.module.classifier.parameters(), 'lr': lr_ratio*base_lr},
+                                   {'params': model.module.classifier_swap.parameters(), 'lr': lr_ratio*base_lr},
+                                   {'params': model.module.Convmask.parameters(), 'lr': lr_ratio*base_lr},
+                                  ], lr = base_lr, momentum=0.9)
 
 
     exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=args.decay_step, gamma=0.1)
@@ -240,6 +256,7 @@ if __name__ == '__main__':
           exp_lr_scheduler=exp_lr_scheduler,
           data_loader=dataloader,
           save_dir=save_dir,
+          sw=sw,
           data_size=args.crop_resolution,
           savepoint=args.save_point,
           checkpoint=args.check_point)
