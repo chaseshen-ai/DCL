@@ -210,7 +210,6 @@ if __name__ == '__main__':
         outputs = model(dummy_input)
         sw.add_graph(model, dummy_input)
 
-
     # get weight of feature 3202*2048, DCL 对应着－４层全职，ResNet50 对应着
     params=list(model.parameters())
     weight_softmax = np.squeeze(params[-3].data.numpy())
@@ -247,8 +246,7 @@ if __name__ == '__main__':
             outputs_pred = outputs[0]
             outputs_pred=F.softmax(outputs_pred)
             outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
-            # args.CAM=True
-            # args.feature_map=True
+
             count=batch_cnt_val*args.batch_size+image_in_batch
             if args.feature_map:
                 # visualization of the feature maps
@@ -261,16 +259,7 @@ if __name__ == '__main__':
                     # heatmap = heatmaps[image_in_batch]
                     single_CAM(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, outputs_predicted[image_in_batch],img.shape,sw)
                     # CAM_test(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, img.shape, sw)
-                else:
-                    # not use
-                    heatmap = np.mean(outputs[3].cpu().numpy()[image_in_batch], axis=0, keepdims=False)
-                    heatmap = (heatmap / np.max(heatmap) * 255.0).astype(np.uint8)
-                    heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
-                    color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
-                    attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
-                    attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
-                    attention_image = attention_image.transpose((2, 0, 1))
-                    sw.add_image('attention_image', attention_image)
+
 
             # print(time.time()-T1)
             Total_time+=time.time()-T1
