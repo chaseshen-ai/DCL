@@ -48,14 +48,14 @@ def parse_args():
                         default=0, type=int)
     parser.add_argument('--ver', dest='version',
                         default='test', type=str)
+    parser.add_argument('--detail', dest='discribe',
+                        default=None, type=str)
     parser.add_argument('--save', dest='resume',
                         default="/NAS/shenjintong/DCL/net_model/training_descibe_41123_ItargeCar/model_best.pth", type=str)
     parser.add_argument('--anno', dest='anno',
-                        default="/home/chase/PycharmProjects/Dataset/DCL/test_info.csv", type=str)
+                        default=None, type=str)
     parser.add_argument('--result_path', dest='result_path',
                         default="/NAS/shenjintong/Dataset/ItargeCar/Result/DCL/raw_result/", type=str)
-    parser.add_argument('--save_name', dest='save_name',
-                        default=None, type=str)
     parser.add_argument('--size', dest='resize_resolution',
                         default=512, type=int)
     parser.add_argument('--crop', dest='crop_resolution',
@@ -69,20 +69,18 @@ def parse_args():
                     type=int, help='specify a range')
     parser.add_argument('--use_backbone', dest='use_backbone',
                     action='store_false')
-    parser.add_argument('--feature_map', dest='feature_map',
-                    action='store_true')
     parser.add_argument('--CAM', dest='CAM',
                     action='store_true')
     parser.add_argument('--no_bbox', dest='no_bbox',
                     action='store_true')
     parser.add_argument('--graph', dest='add_stureture_graph',
                     action='store_true')
-    parser.add_argument('--not_default_dataset', dest='not_default',
-                    action='store_true')
     parser.add_argument('--no_loc', dest='no_loc',
                     action='store_true')
+    parser.add_argument('--cv', dest='opencv_save',
+                    action='store_true')
     parser.add_argument('--log_dir', dest='log_dir',
-                        default='logs/log_info/image_test', type=str)
+                        default=None, type=str)
     args = parser.parse_args()
     return args
 
@@ -107,19 +105,56 @@ def CAM_test(feature_conv, weight_softmax,shape,sw):
         sw.add_image('attention_image', attention_image)
 
 
-def returnCAM(feature_conv, weight_softmax, class_idx,shape):
-    # generate the class activation maps upsample to 256x256
-    size_upsample = (shape[1], shape[0])
+def returnCAM(args,feature_conv, weight_softmax, class_idx,img_name,dataset_pd,sw=None):
+    if args.dataset=='ItargeCar'or args.dataset=='Itarge_car_no_wind':
+        class_label = pd.read_csv("/NAS/shenjintong/Dataset/ItargeCar/csv_dataset/class_list.csv")
+    elif args.dataset=='ItargeCar_Brand':
+        class_label = pd.read_csv("/NAS/shenjintong/Dataset/ItargeCar/csv_dataset/brand_class_list.csv")
+    class_label.columns = ['label','class']
     bz, nc, h, w = feature_conv.shape
-    output_cam = []
     for i, idx in enumerate(class_idx):
-        cam = np.dot(weight_softmax[idx],feature_conv[i].reshape((nc, h*w)))
-        cam = cam.reshape(h, w)
-        cam = cam - np.min(cam)
-        cam_img = cam / np.max(cam)
-        cam_img = np.uint8(255 * cam_img)
-        output_cam.append(cv2.resize(cam_img, size_upsample))
-    return output_cam
+        count = args.batch_cnt_val * args.batch_size + i
+        # 提取预测和标签信息
+        size_upsample = (448, 448)
+        data=dataset_pd.loc[[count]]
+
+        class_name = class_label.query('label==%d' % idx).values[0, 1]
+        index=data['Unnamed: 0'].values[0]
+        predicted=class_name.split('-')[0]
+        true_class=data['class'].values[0].split('-')[0]
+        x0 = data['x0'].values[0]
+        x1 = data['x1'].values[0]
+        y0 = data['y0'].values[0]
+        y1 = data['y1'].values[0]
+        # 只保存错误标记的图片
+        if not predicted==true_class:
+            # 图片读取与处理
+            img = cv2.imread(img_name[i])
+            if not args.no_bbox:
+                if not x0 == y1 == x1 == 0:
+                    img = img[y0:y1, x0:x1]
+            # CAM 提取
+            cam = np.dot(weight_softmax[idx],feature_conv[i].reshape((nc, h*w)))
+            cam = cam.reshape(h, w)
+            cam = cam - np.min(cam)
+            cam_img = cam / np.max(cam)
+            cam_img = np.uint8(255 * cam_img)
+            heatmap=cv2.resize(cam_img, size_upsample)
+            img = cv2.resize(img, size_upsample)
+            color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
+            attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
+            # 结果打印
+            string="实际标签: %s\n预测结果: %s" %(data['class'].values[0].replace('(','').replace(')',''),class_name)
+            attention_image = cv2ImgAddText(attention_image, string, 10, 10, (255, 0, 0), 20)
+            # 输出方式选择
+            # 保存路径为： ./imgs/<args.discribe>/test_
+            if sw is not None:
+                attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
+                attention_image = attention_image.transpose((2, 0, 1))
+                sw.add_image('attention_image', attention_image)
+            else:
+                mkdir(os.path.join("imgs", args.discribe))
+                cv2.imwrite(os.path.join("imgs", args.discribe,'%s_%d.jpg' % (data['class'].values[0],index)), attention_image)
 
 def cv2ImgAddText(img, text, left, top, textColor=(0, 255, 0), textSize=20):
     from PIL import Image, ImageDraw, ImageFont
@@ -131,52 +166,73 @@ def cv2ImgAddText(img, text, left, top, textColor=(0, 255, 0), textSize=20):
     return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
 
 
-def single_CAM(feature_conv, weight_softmax, class_idx,shape,sw):
+def mkdir(path):
+    path = path.strip()
+    path = path.rstrip("\\")
+    isExists = os.path.exists(path)
+
+    if not isExists:
+        os.makedirs(path)
+        print(path + ' successful created')
+        return True
+
+def single_CAM(feature_conv, weight_softmax, class_idx,shape,dataset_pd,sw=None):
     # generate the class activation maps upsample to 256x256
-
-    class_label = pd.read_csv('/NAS/shenjintong/Dataset/ItargeCar/class_list.csv')
-
-    size_upsample = (shape[1], shape[0])
-    nc, h, w = feature_conv.shape
-    cam = np.dot(weight_softmax[class_idx],feature_conv.reshape((nc, h*w)))
-    cam = cam.reshape(h, w)
-    cam = cam - np.min(cam)
-    cam_img = cam / np.max(cam)
-    cam_img = np.uint8(255 * cam_img)
-    heatmap=cv2.resize(cam_img, size_upsample)
-    color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
-    attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
-
     # print predicted result
-    class_name=class_label.query('model0219==%d'%class_idx).values[0, 1]
-    string="预测结果: %s" %class_name
-    attention_image = cv2ImgAddText(attention_image, string, 10, 10, (255, 0, 0), 20)
+    class_label = pd.read_csv('/NAS/shenjintong/Dataset/ItargeCar/class_list.csv')
+    class_name = class_label.query('model0219==%d' % class_idx).values[0, 1]
 
-    attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
-    attention_image = attention_image.transpose((2, 0, 1))
-    sw.add_image('attention_image', attention_image)
-
+    index=dataset_pd['Unnamed: 0'].values[0]
+    predicted=class_name.split('-')[0]
+    true_brand=dataset_pd['class'].values[0].split('-')[0]
+    if not predicted==true_brand:
+        size_upsample = (shape[1], shape[0])
+        nc, h, w = feature_conv.shape
+        cam = np.dot(weight_softmax[class_idx],feature_conv.reshape((nc, h*w)))
+        cam = cam.reshape(h, w)
+        cam = cam - np.min(cam)
+        cam_img = cam / np.max(cam)
+        cam_img = np.uint8(255 * cam_img)
+        heatmap=cv2.resize(cam_img, size_upsample)
+        color_map = cv2.applyColorMap(heatmap.astype(np.uint8), cv2.COLORMAP_JET)
+        attention_image = cv2.addWeighted(img, 0.5, color_map.astype(np.uint8), 0.5, 0)
+        string="标签： %s\n预测结果: %s " %(dataset_pd['class'].values[0],class_name)
+        attention_image = cv2ImgAddText(attention_image, string, 10, 10, (255, 0, 0), 20)
+        if sw is not None:
+            attention_image = cv2.cvtColor(attention_image, cv2.COLOR_BGR2RGB)
+            attention_image = attention_image.transpose((2, 0, 1))
+            sw.add_image('attention_image', attention_image)
+        else:
+            mkdir(os.path.join("imgs",args.discribe))
+            cv2.imwrite(os.path.join("imgs", args.discribe,'test_%d.jpg' % (index)), attention_image)
 
 
 if __name__ == '__main__':
     args = parse_args()
 
     print(args)
-    if args.CAM:
-        args.feature_map=True
+    print(args.anno)
+    # # todo: debug
+    # args.anno = "/NAS/shenjintong/Dataset/ItargeCar/class_originbox/test_info.csv"
+    # args.resume= "/NAS/shenjintong/DCL/net_model/DCL_512_448_41123_ItargeCar/model_best.pth"
+    # args.CAM=True
+    # args.opencv_save=True
+
 
     Config = LoadConfig(args, args.version)
     Config.cls_2xmul = True
     Config.cls_2 = False
     Config.no_loc = args.no_loc
     # sw define
-    sw_log = args.log_dir
-    sw = SummaryWriter(log_dir=sw_log)
+
+    if args.log_dir:
+        sw_log = args.log_dir
+        sw = SummaryWriter(log_dir=sw_log)
 
     transformers = load_data_transformers(args.resize_resolution, args.crop_resolution, args.swap_num)
 
     # 由于args.version的作用只是自动选择对应的标记文件进行读取，去除version设置直接使用文件路径输入
-    if args.not_default:
+    if args.anno:
         dataset_pd = pd.read_csv(args.anno)
     else:
         dataset_pd = Config.val_anno if args.version == 'val' else Config.test_anno
@@ -205,10 +261,11 @@ if __name__ == '__main__':
     model.load_state_dict(model_dict)
 
     # add tensorboard graph of structure
-    if args.add_stureture_graph:
-        dummy_input = (torch.zeros(1, 3, args.crop_resolution, args.crop_resolution))
-        outputs = model(dummy_input)
-        sw.add_graph(model, dummy_input)
+    if args.log_dir:
+        if args.add_stureture_graph:
+            dummy_input = (torch.zeros(1, 3, args.crop_resolution, args.crop_resolution))
+            outputs = model(dummy_input)
+            sw.add_graph(model, dummy_input)
 
     # get weight of feature 3202*2048, DCL 对应着－４层全职，ResNet50 对应着
     params=list(model.parameters())
@@ -218,25 +275,18 @@ if __name__ == '__main__':
     model = nn.DataParallel(model)
     model.train(False)
 
-
-    std = [0.229, 0.224, 0.225]
-    mean = [0.485, 0.456, 0.406]
-
-    Total_time=0.0
     with torch.no_grad():
         result_1=[]
-        result_2=[]
         confidence_1=[]
-        confidence_2=[]
+        all_result=[]
+
         val_size = ceil(len(data_set) / dataloader.batch_size)
         result_gather = {}
         count_bar = tqdm(total=dataloader.__len__())
         count = 0
+        Total_time = 0.0
         for batch_cnt_val, data_val in enumerate(dataloader):
-
-            image_in_batch=0
-            channal=1
-
+            args.batch_cnt_val=batch_cnt_val
             count_bar.update(1)
             inputs, labels, img_name = data_val
             inputs = Variable(inputs.cuda())
@@ -244,39 +294,47 @@ if __name__ == '__main__':
             T1=time.time()
             outputs = model(inputs)
             outputs_pred = outputs[0]
+            # add all reuslt save
+            # all_result.extend(outputs_pred.cpu().numpy().tolist())
             outputs_pred=F.softmax(outputs_pred)
-            outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
-
-            count=batch_cnt_val*args.batch_size+image_in_batch
-            if args.feature_map:
-                # visualization of the feature maps
-                img=cv2.imread(img_name[image_in_batch]) # h,w,c
-                if not args.no_bbox:
-                    if not data_set.y0[count]==data_set.y1[count]==data_set.x0[count]==data_set.x1[count]==0:
-                        img=img[data_set.y0[count]: data_set.y1[count], data_set.x0[count]: data_set.x1[count]]
-                if args.CAM:
-                    # heatmaps = returnCAM(outputs[3].cpu().numpy(), weight_softmax, outputs_predicted,img.shape)
-                    # heatmap = heatmaps[image_in_batch]
-                    single_CAM(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, outputs_predicted[image_in_batch],img.shape,sw)
-                    # CAM_test(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, img.shape, sw)
-
-
             # print(time.time()-T1)
             Total_time+=time.time()-T1
+
+            # add all reuslt save
+            all_result.extend(outputs_pred.cpu().numpy().tolist())
+            outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
+
+            if args.CAM:
+                # visualization of the feature maps
+                if args.opencv_save:
+                    # single_CAM(outputs[3].cpu().numpy()[image_in_batch], weight_softmax,
+                    #            outputs_predicted[image_in_batch], img.shape,data)
+                    returnCAM(args, outputs[3].cpu().numpy(), weight_softmax, outputs_predicted, img_name, dataset_pd)
+                else:
+                    returnCAM(args, outputs[3].cpu().numpy(), weight_softmax, outputs_predicted, img_name, dataset_pd,sw)
+                    # single_CAM(outputs[3].cpu().numpy()[image_in_batch], weight_softmax,
+                    #            outputs_predicted[image_in_batch], img.shape,data,sw)
+                # CAM_test(outputs[3].cpu().numpy()[image_in_batch], weight_softmax, img.shape, sw)
+
             result_1.extend(outputs_predicted.cpu().numpy().tolist())
             confidence_1.extend(outputs_confidence.cpu().numpy().tolist())
 
-
+        all_result=np.array(all_result)
         predicted_1 = pd.Series(result_1)
         dataset_pd['predicted'] = predicted_1
         dataset_pd['confidence']=pd.Series(confidence_1)
-
-
         average_time=Total_time/len(data_set)
         print("Average_time: %.4f" %average_time)
 
-        if args.save_name:
-            save_path = os.path.join(args.result_path, args.save_name)
+        if args.discribe:
+            if not os.path.exists(os.path.join(args.result_path, args.discribe)):
+                os.mkdir(os.path.join(args.result_path, args.discribe))
+            if args.version=='test':
+                save_path = os.path.join(args.result_path, args.discribe,'test_raw_result.csv')
+            else:
+                save_path = os.path.join(args.result_path, args.discribe, 'val_raw_result.csv')
             dataset_pd.to_csv(save_path)
+            # save_npy = os.path.join(args.result_path, args.save_name.split('.')[0]+'.npy')
+            # np.save(save_npy,all_result)
 
 

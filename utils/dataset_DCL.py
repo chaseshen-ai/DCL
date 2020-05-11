@@ -33,7 +33,7 @@ def random_sample(img_names, labels):
 
 
 class dataset(data.Dataset):
-    def __init__(self, Config, anno, swap_size=[7,7],common_aug=None, swap=None, totensor=None, train=False, train_val=False, test=False,val=False):
+    def __init__(self, Config, anno, swap_size=[7,7],sw=None,common_aug=None, swap=None, totensor=None, train=False, train_val=False, test=False,val=False,):
         self.root_path = Config.rawdata_root
         self.numcls = Config.numcls
         self.dataset = Config.dataset
@@ -88,9 +88,12 @@ class dataset(data.Dataset):
                 x1=min(self.x1[item],img.size[0])
                 y0=self.y0[item]
                 y1=min(self.y1[item],img.size[1])
-                if not x0==x1==y0==y1==0:
+                if not x0==x1==y1==0:
                     bbox=(x0,y0,x1,y1)
                     img=img.crop(bbox)
+                else:
+                    bbox = (0, y0, x1, y1)
+                    img = img.crop(bbox)
             if self.test:
                 img = self.totensor(img)
                 return img, None,self.paths[item]

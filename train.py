@@ -23,8 +23,7 @@ from utils.dataset_DCL import collate_fn4train, collate_fn4val, collate_fn4test,
 from tensorboardX import SummaryWriter
 import pdb
 
-os.environ['CUDA_DEVICE_ORDRE'] = 'PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+
 
 # parameters setting
 def parse_args():
@@ -40,14 +39,16 @@ def parse_args():
                         action='store_true')
     parser.add_argument('--epoch', dest='epoch',
                         default=360, type=int)
+    parser.add_argument('--gpu', dest='gpu',
+                        default='0', type=str)
     parser.add_argument('--tb', dest='train_batch',
                         default=16, type=int)
     parser.add_argument('--vb', dest='val_batch',
                         default=512, type=int)
     parser.add_argument('--sp', dest='save_point',
-                        default=5000, type=int)
+                        default=10000, type=int)
     parser.add_argument('--cp', dest='check_point',
-                        default=5000, type=int)
+                        default=10000, type=int)
     parser.add_argument('--lr', dest='base_lr',
                         default=0.0008, type=float)
     parser.add_argument('--lr_step', dest='decay_step',
@@ -74,8 +75,12 @@ def parse_args():
                         action='store_false')
     parser.add_argument('--no_bbox', dest='no_bbox',
                     action='store_true')
-    parser.add_argument('--not_default_dataset', dest='not_default',
-                    action='store_true')
+    parser.add_argument('--anno', dest='anno',
+                        default=None, type=str)
+    parser.add_argument('--graph', dest='add_stureture_graph',
+                action='store_true')
+    parser.add_argument('--image', dest='add_images',
+                action='store_true')
     parser.add_argument('--no_loc', dest='no_loc',
                     action='store_true')
     parser.add_argument('--swap_num', default=[7, 7],
@@ -105,7 +110,12 @@ if __name__ == '__main__':
     Config.cls_2xmul = args.cls_mul
     Config.log_dir = args.log_dir
     Config.no_loc = args.no_loc
+    Config.add_images = args.add_images
     assert Config.cls_2 ^ Config.cls_2xmul
+
+
+    os.environ['CUDA_DEVICE_ORDRE'] = 'PCI_BUS_ID'
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     # sw define
     sw_log = Config.log_dir
@@ -192,6 +202,7 @@ if __name__ == '__main__':
         model_dict = model.state_dict()
         pretrained_dict = torch.load(resume)
         pretrained_dict = {k[7:]: v for k, v in pretrained_dict.items() if k[7:] in model_dict}
+
         model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
 
@@ -202,10 +213,12 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    # tensorboardX add graph
-    dummy_input = (torch.zeros(1, 3, args.crop_resolution, args.crop_resolution))
-    outputs = model(dummy_input)
-    sw.add_graph(model, dummy_input)
+    # add tensorboard graph of structure
+    if args.add_stureture_graph:
+        # tensorboardX add graph
+        dummy_input = (torch.zeros(1, 3, args.crop_resolution, args.crop_resolution))
+        outputs = model(dummy_input)
+        sw.add_graph(model, dummy_input)
 
     model.cuda()
     model = nn.DataParallel(model)

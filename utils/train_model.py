@@ -20,6 +20,8 @@ from tensorboardX import SummaryWriter
 from torchvision import transforms
 import pdb
 
+import cv2
+
 def dt():
     return datetime.datetime.now().strftime("%Y-%m-%d-%H_%M_%S")
 
@@ -52,6 +54,8 @@ def train(Config,
     train_batch_size = data_loader['train'].batch_size
     train_epoch_step = data_loader['train'].__len__()
     train_loss_recorder = LossRecord(train_batch_size)
+
+
 
     if savepoint > train_epoch_step:
         savepoint = 1*train_epoch_step
@@ -88,6 +92,9 @@ def train(Config,
 
             optimizer.zero_grad()
 
+            # 显示输入图片
+            # sw.add_image('attention_image', inputs[0])
+
             if inputs.size(0) < 2*train_batch_size:
                 outputs = model(inputs, inputs[0:-1:2])
             else:
@@ -113,7 +120,10 @@ def train(Config,
             # gamma_ = 0.01 if Config.dataset == 'STCAR' or Config.dataset == 'AIR' else 1
             gamma_ = 0.01
             if Config.use_dcl:
-                swap_loss = get_ce_loss(outputs[1], labels_swap) * beta_
+                if Config.use_focal_loss:
+                    swap_loss = get_focal_loss(outputs[1], labels_swap) * beta_
+                else:
+                    swap_loss = get_ce_loss(outputs[1], labels_swap) * beta_
                 loss += swap_loss
                 if not Config.no_loc:
                     law_loss = add_loss(outputs[2], swap_law) * gamma_
@@ -151,12 +161,11 @@ def train(Config,
                 is_best = val_acc1 > best_prec1
                 best_prec1 = max(val_acc1, best_prec1)
                 filename='weights_%d_%d_%.4f_%.4f.pth' % (epoch, batch_cnt, val_acc1, val_acc3)
-
                 save_checkpoint(model.state_dict(), is_best, save_dir,filename)
-
                 sw.add_scalar("Train_Loss", loss.detach().item(), epoch)
                 sw.add_scalar("Val_Accurancy",val_acc1, epoch)
                 sw.add_scalar("learning_rate",exp_lr_scheduler.get_lr()[1] , epoch)
+
                 torch.cuda.empty_cache()
 
             # save only
@@ -171,6 +180,8 @@ def train(Config,
                     del checkpoint_list[0]
                 torch.save(model.state_dict(), save_path)
                 torch.cuda.empty_cache()
+
+
 
 
 import shutil
