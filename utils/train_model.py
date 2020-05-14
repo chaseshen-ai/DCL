@@ -13,6 +13,7 @@ from torch.autograd import Variable
 from transforms import transforms
 from utils.utils import LossRecord, clip_gradient
 from models.focal_loss import FocalLoss
+from models.loss_1 import Loss_1
 from utils.eval_model import eval_turn
 from utils.Asoftmax_loss import AngleLoss
 #from torch.utils.tensorboard import SummaryWriter
@@ -66,6 +67,7 @@ def train(Config,
 
     add_loss = nn.L1Loss()
     get_ce_loss = nn.CrossEntropyLoss()
+    get_loss1 = Loss_1()
     get_focal_loss = FocalLoss()
     get_angle_loss = AngleLoss()
 
@@ -84,11 +86,18 @@ def train(Config,
                 labels = Variable(torch.from_numpy(np.array(labels)).cuda())
 
             if Config.use_dcl:
-                inputs, labels, labels_swap, swap_law, img_names = data
+                if Config.multi:
+                    inputs, labels, labels_swap, swap_law, blabels, clabels, tlabels,img_names = data
+                else:
+                    inputs, labels, labels_swap, swap_law, img_names = data
                 inputs = Variable(inputs.cuda())
                 labels = Variable(torch.from_numpy(np.array(labels)).cuda())
                 labels_swap = Variable(torch.from_numpy(np.array(labels_swap)).cuda())
                 swap_law = Variable(torch.from_numpy(np.array(swap_law)).float().cuda())
+                if Config.multi:
+                    blabels = Variable(torch.from_numpy(np.array(blabels)).cuda())
+                    clabels = Variable(torch.from_numpy(np.array(clabels)).cuda())
+                    tlabels = Variable(torch.from_numpy(np.array(tlabels)).cuda())
 
             optimizer.zero_grad()
 
@@ -99,11 +108,19 @@ def train(Config,
                 outputs = model(inputs, inputs[0:-1:2])
             else:
                 outputs = model(inputs, None)
+            if Config.multi:
+                ce_loss=get_ce_loss(outputs[0], labels)+get_ce_loss(outputs[0], blabels)+get_ce_loss(outputs[0], clabels)+get_ce_loss(outputs[0], tlabels)
 
-            if Config.use_focal_loss:
-                ce_loss = get_focal_loss(outputs[0], labels)
+                if Config.brand_relation:
+                    test_loss,pro = get_loss1(outputs[0], labels)
+                    # 创建品牌到车系的映射表
+                    test_loss2,_ = get_loss1(outputs[0], labels,brand_prob=pro)
+
             else:
-                ce_loss = get_ce_loss(outputs[0], labels)
+                if Config.use_focal_loss:
+                    ce_loss = get_focal_loss(outputs[0], labels)
+                else:
+                    ce_loss = get_ce_loss(outputs[0], labels)
 
             if Config.use_Asoftmax:
                 fetch_batch = labels.size(0)

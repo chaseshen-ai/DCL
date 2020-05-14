@@ -64,27 +64,27 @@ class LoadConfig(object):
         # put image data in $PATH/data
         # put annotation txt file in $PATH/anno
 
-        if args.dataset == 'product':
-            self.dataset = args.dataset
-            self.rawdata_root = './../FGVC_product/data'
-            self.anno_root = './../FGVC_product/anno'
-            self.numcls = 2019
-        elif args.dataset == 'CUB':
-            self.dataset = args.dataset
-            self.rawdata_root = './dataset/CUB_200_2011/data'
-            self.anno_root = './dataset/CUB_200_2011/anno'
-            self.numcls = 200
-        elif args.dataset == 'STCAR':
-            self.dataset = args.dataset
-            self.rawdata_root = '../Dataset/StanfordCars'
-            self.anno_root = './datasets/STCAR'
-            self.numcls = 196
-        elif args.dataset == 'AIR':
-            self.dataset = args.dataset
-            self.rawdata_root = './dataset/aircraft/data'
-            self.anno_root = './dataset/aircraft/anno'
-            self.numcls = 100
-        elif args.dataset =='ItargeCar':
+        # if args.dataset == 'product':
+        #     self.dataset = args.dataset
+        #     self.rawdata_root = './../FGVC_product/data'
+        #     self.anno_root = './../FGVC_product/anno'
+        #     self.numcls = 2019
+        # elif args.dataset == 'CUB':
+        #     self.dataset = args.dataset
+        #     self.rawdata_root = './dataset/CUB_200_2011/data'
+        #     self.anno_root = './dataset/CUB_200_2011/anno'
+        #     self.numcls = 200
+        # elif args.dataset == 'STCAR':
+        #     self.dataset = args.dataset
+        #     self.rawdata_root = '../Dataset/StanfordCars'
+        #     self.anno_root = './datasets/STCAR'
+        #     self.numcls = 196
+        # elif args.dataset == 'AIR':
+        #     self.dataset = args.dataset
+        #     self.rawdata_root = './dataset/aircraft/data'
+        #     self.anno_root = './dataset/aircraft/anno'
+        #     self.numcls = 100
+        if args.dataset =='ItargeCar':
             self.dataset = args.dataset
             self.rawdata_root = ''
             self.anno_root = '../Dataset/ItargeCar/Itarge_car'
@@ -109,6 +109,19 @@ class LoadConfig(object):
             self.rawdata_root = ''
             self.anno_root = '../Dataset/ItargeCar/Itarge_car_0520'
             self.numcls = 3255
+        elif args.dataset =='ItargeCar_0520_brand':
+            self.dataset = args.dataset
+            self.rawdata_root = ''
+            self.anno_root = '../Dataset/ItargeCar/Itarge_car_0520_brand'
+            self.numcls = 183
+        elif args.dataset =='ItargeCar_0520_multiclass':
+            self.dataset = args.dataset
+            self.rawdata_root = ''
+            self.anno_root = '../Dataset/ItargeCar/Itarge_car_0520_brand'
+            self.numcls = 183
+            self.numbrand = 183
+            self.numcolour = 183
+            self.numtype = 183
         else:
             raise Exception('dataset not defined ???')
 
@@ -116,31 +129,31 @@ class LoadConfig(object):
         # path/image_name cls_num\n
         if args.anno==None:
             if 'train' in get_list:
-                if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand'or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520':
-                        self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'train_info.csv'))
-                else:
-                    self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_train.txt'),\
-                                               sep=" ",\
-                                               header=None,\
-                                               names=['ImageName', 'label'])
+                # if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand'or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520'or args.dataset =='ItargeCar_0520_brand' :
+                self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'train_info.csv'))
+                # else:
+                #     self.train_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_train.txt'),\
+                #                                sep=" ",\
+                #                                header=None,\
+                #                                names=['ImageName', 'label'])
 
             if 'val' in get_list:
-                if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand'or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520':
-                        self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'val_info.csv'))
-                else:
-                    self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_val.txt'),\
-                                                   sep=" ",\
-                                                   header=None,\
-                                                   names=['ImageName', 'label'])
+                # if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand'or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520':
+                self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'val_info.csv'))
+                # else:
+                #     self.val_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_val.txt'),\
+                #                                    sep=" ",\
+                #                                    header=None,\
+                #                                    names=['ImageName', 'label'])
 
             if 'test' in get_list:
-                if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand'or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520':
-                        self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'test_info.csv'))
-                else:
-                    self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_test.txt'),\
-                                                   sep=" ",\
-                                                   header=None,\
-                                                   names=['ImageName', 'label'])
+                # if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand'or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520':
+                self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'test_info.csv'))
+                # else:
+                #     self.test_anno = pd.read_csv(os.path.join(self.anno_root, 'ct_test.txt'),\
+                #                                    sep=" ",\
+                #                                    header=None,\
+                #                                    names=['ImageName', 'label'])
 
         self.swap_num = args.swap_num
 
@@ -168,10 +181,9 @@ class LoadConfig(object):
         if not os.path.exists(self.log_folder):
             os.mkdir(self.log_folder)
 
-        if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand' or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520':
-            self.bbox=True
-        else:
-            self.bbox=False
-
+        # if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand' or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520':
+        self.bbox=True
+        # else:
+        #     self.bbox=False
         self.no_bbox=args.no_bbox
 

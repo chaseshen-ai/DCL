@@ -19,7 +19,8 @@ from transforms import transforms
 from utils.train_model import train
 from models.LoadModel import MainModel
 from config import LoadConfig, load_data_transformers
-from utils.dataset_DCL import collate_fn4train, collate_fn4val, collate_fn4test, collate_fn4backbone, dataset
+# from config_no_bias import LoadConfig, load_data_transformers
+from utils.dataset_DCL import collate_fn4train, collate_fn4val,collate_multi_fn4train,collate_fn4test, collate_fn4backbone, dataset
 from tensorboardX import SummaryWriter
 import pdb
 
@@ -29,7 +30,7 @@ import pdb
 def parse_args():
     parser = argparse.ArgumentParser(description='dcl parameters')
     parser.add_argument('--data', dest='dataset',
-                        default='STCAR', type=str)
+                        default='ItargeCar_0520', type=str)
     parser.add_argument('--save', dest='resume',
                         default=None,
                         type=str)
@@ -40,15 +41,15 @@ def parse_args():
     parser.add_argument('--epoch', dest='epoch',
                         default=360, type=int)
     parser.add_argument('--gpu', dest='gpu',
-                        default='0', type=str)
+                        default='1', type=str)
     parser.add_argument('--tb', dest='train_batch',
                         default=16, type=int)
     parser.add_argument('--vb', dest='val_batch',
-                        default=512, type=int)
+                        default=1, type=int)
     parser.add_argument('--sp', dest='save_point',
-                        default=10000, type=int)
+                        default=50000, type=int)
     parser.add_argument('--cp', dest='check_point',
-                        default=10000, type=int)
+                        default=50000, type=int)
     parser.add_argument('--lr', dest='base_lr',
                         default=0.0008, type=float)
     parser.add_argument('--lr_step', dest='decay_step',
@@ -83,6 +84,12 @@ def parse_args():
                 action='store_true')
     parser.add_argument('--no_loc', dest='no_loc',
                     action='store_true')
+    parser.add_argument('--no_fc_w', dest='no_fc_w',
+                    action='store_true')
+    parser.add_argument('--multi', dest='multi',
+                    action='store_true')
+    parser.add_argument('--b_relat', dest='brand_relation',
+                    action='store_true')
     parser.add_argument('--swap_num', default=[7, 7],
                     nargs=2, metavar=('swap1', 'swap2'),
                     type=int, help='specify a range')
@@ -105,12 +112,18 @@ def auto_load_resume(load_dir):
 if __name__ == '__main__':
     args = parse_args()
     print(args, flush=True)
+    # args.cls_mul=True
+    # args.train_num_workers=True
+    # args.resize_resolution=147
+    # args.crop_resolution=129
     Config = LoadConfig(args, 'train')
+    Config.brand_relation=args.brand_relation
     Config.cls_2 = args.cls_2
     Config.cls_2xmul = args.cls_mul
     Config.log_dir = args.log_dir
     Config.no_loc = args.no_loc
     Config.add_images = args.add_images
+    Config.multi=args.multi
     assert Config.cls_2 ^ Config.cls_2xmul
 
 
@@ -152,7 +165,7 @@ if __name__ == '__main__':
                                                 batch_size=args.train_batch,\
                                                 shuffle=True,\
                                                 num_workers=args.train_num_workers,\
-                                                collate_fn=collate_fn4train if not Config.use_backbone else collate_fn4backbone,
+                                                collate_fn=collate_fn4train if not Config.multi else collate_multi_fn4train,
                                                 drop_last=True if Config.use_backbone else False,
                                                 pin_memory=True)
 
@@ -201,8 +214,10 @@ if __name__ == '__main__':
 
         model_dict = model.state_dict()
         pretrained_dict = torch.load(resume)
-        pretrained_dict = {k[7:]: v for k, v in pretrained_dict.items() if k[7:] in model_dict}
-
+        if args.no_fc_w:
+            pretrained_dict = {k[7:]: v for k, v in pretrained_dict.items() if k[7:] in model_dict and k[7:]!='classifier.weight' and k[7:]!='classifier_swap.weight'and k[7:]!='Convmask.weight' and k[7:]!='Convmask.bias'}
+        else:
+            pretrained_dict = {k[7:]: v for k, v in pretrained_dict.items() if k[7:] in model_dict}
         model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
 

@@ -41,6 +41,7 @@ class dataset(data.Dataset):
         self.use_cls_mul = Config.cls_2xmul
         self.no_bbox=Config.no_bbox
         self.bbox=Config.bbox
+        self.multi=Config.multi
         if self.bbox:
             if isinstance(anno, pandas.core.frame.DataFrame):
                 # a=anno['image_path'].tolist()
@@ -53,6 +54,10 @@ class dataset(data.Dataset):
                     self.y1=anno['y1'].tolist()
                 if not test:
                     self.labels = anno['label'].tolist()
+                    if self.multi:
+                        self.blabels = anno['blabel'].tolist()
+                        self.clabels = anno['clabel'].tolist()
+                        self.tlabels = anno['tlabel'].tolist()
             else:
                 print('Error: wrong dataset input')
         else:
@@ -92,12 +97,11 @@ class dataset(data.Dataset):
                     bbox=(x0,y0,x1,y1)
                     img=img.crop(bbox)
                 else:
-                    bbox = (0, y0, x1, y1)
+                    bbox = (0, y0,img.size[0],img.size[1])
                     img = img.crop(bbox)
             if self.test:
                 img = self.totensor(img)
                 return img, None,self.paths[item]
-
         else:
             img_path = os.path.join(self.root_path, self.paths[item])
             img = self.pil_loader(img_path)
@@ -130,7 +134,13 @@ class dataset(data.Dataset):
             if self.use_cls_2:
                 label_swap = -1
             img_unswap = self.totensor(img_unswap)
-            return img_unswap, img_swap, label, label_swap, swap_law1, swap_law2, self.paths[item]
+            if self.multi:
+                blabel = self.blabels[item]
+                clabel = self.clabels[item]
+                tlabel = self.tlabels[item]
+                return img_unswap, img_swap, label, label_swap, swap_law1, swap_law2,blabel,clabel,tlabel, self.paths[item]
+            else:
+                return img_unswap, img_swap, label, label_swap, swap_law1, swap_law2, self.paths[item]
         else:
             label = self.labels[item]
             swap_law2 = [(i-(swap_range//2))/swap_range for i in range(swap_range)]
@@ -159,6 +169,39 @@ class dataset(data.Dataset):
         weights = [self.labels.count(x) for x in range(self.numcls)]
         return torch.utils.data.sampler.WeightedRandomSampler(weights, num_samples=img_nums)
 
+
+
+
+def collate_multi_fn4train(batch):
+    imgs = []
+    label = []
+    label_swap = []
+    law_swap = []
+    img_name = []
+    blabel=[]
+    clabel=[]
+    tlabel=[]
+    for sample in batch:
+        imgs.append(sample[0])
+        imgs.append(sample[1])
+        label.append(sample[2])
+        label.append(sample[2])
+        if sample[3] == -1:
+            label_swap.append(1)
+            label_swap.append(0)
+        else:
+            label_swap.append(sample[2])
+            label_swap.append(sample[3])
+        law_swap.append(sample[4])
+        law_swap.append(sample[5])
+        blabel.append(sample[6])
+        blabel.append(sample[6])
+        clabel.append(sample[7])
+        clabel.append(sample[7])
+        tlabel.append(sample[8])
+        tlabel.append(sample[8])
+        img_name.append(sample[-1])
+    return torch.stack(imgs, 0), label, label_swap, law_swap,blabel,clabel,tlabel,img_name
 
 def collate_fn4train(batch):
     imgs = []

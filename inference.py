@@ -81,6 +81,8 @@ def parse_args():
                     action='store_true')
     parser.add_argument('--log_dir', dest='log_dir',
                         default=None, type=str)
+    parser.add_argument('--feature', dest='feature',
+                    action='store_true')
     args = parser.parse_args()
     return args
 
@@ -209,7 +211,18 @@ def single_CAM(feature_conv, weight_softmax, class_idx,shape,dataset_pd,sw=None)
 
 if __name__ == '__main__':
     args = parse_args()
-
+    args.dataset='ItargeCar_0520'
+    args.backbone='resnet50'
+    args.batch_size=1
+    args.num_workers=1
+    args.version='test'
+    args.resume="/NAS/shenjintong/DCL/net_model/DCL_0520data_147_129_582_ItargeCar_0520/model_best.pth"
+    args.detail='feature'
+    args.resize_resolution=147
+    args.crop_resolution=129
+    args.anno="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/inference_set.csv"
+    args.result_path="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/"
+    args.feature=True
     print(args)
     print(args.anno)
     # # todo: debug
@@ -233,7 +246,7 @@ if __name__ == '__main__':
 
     # 由于args.version的作用只是自动选择对应的标记文件进行读取，去除version设置直接使用文件路径输入
     if args.anno:
-        dataset_pd = pd.read_csv(args.anno)
+        dataset_pd = pd.read_csv(args.anno,nrows=1)
     else:
         dataset_pd = Config.val_anno if args.version == 'val' else Config.test_anno
 
@@ -272,8 +285,11 @@ if __name__ == '__main__':
     weight_softmax = np.squeeze(params[-3].data.numpy())
 
     model.cuda()
-    model = nn.DataParallel(model)
+    # model = nn.DataParallel(model)
     model.train(False)
+
+    if args.feature:
+        feature = pd.DataFrame(columns=range(len(data_set)))
 
     with torch.no_grad():
         result_1=[]
@@ -290,19 +306,24 @@ if __name__ == '__main__':
             count_bar.update(1)
             inputs, labels, img_name = data_val
             inputs = Variable(inputs.cuda())
+            print(inputs.shape)
             # labels = Variable(torch.from_numpy(np.array(labels)).long().cuda())
             T1=time.time()
             outputs = model(inputs)
             outputs_pred = outputs[0]
+            print(outputs_pred)
             # add all reuslt save
             # all_result.extend(outputs_pred.cpu().numpy().tolist())
-            outputs_pred=F.softmax(outputs_pred)
+            # if args.feature:
+            #     feature[batch_cnt_val]=pd.Series(outputs_pred.cpu().numpy()[0])
+            outputs_pred_soft=F.softmax(outputs_pred)
             # print(time.time()-T1)
             Total_time+=time.time()-T1
 
             # add all reuslt save
-            all_result.extend(outputs_pred.cpu().numpy().tolist())
-            outputs_confidence, outputs_predicted = torch.max(outputs_pred, 1)
+            all_result.extend(outputs_pred_soft.cpu().numpy().tolist())
+
+            outputs_confidence, outputs_predicted = torch.max(outputs_pred_soft, 1)
 
             if args.CAM:
                 # visualization of the feature maps
@@ -334,6 +355,9 @@ if __name__ == '__main__':
             else:
                 save_path = os.path.join(args.result_path, args.discribe, 'val_raw_result.csv')
             dataset_pd.to_csv(save_path)
+            if args.feature:
+                save_path=os.path.join(args.result_path, args.discribe, 'feature.csv')
+                feature.to_csv(save_path)
             # save_npy = os.path.join(args.result_path, args.save_name.split('.')[0]+'.npy')
             # np.save(save_npy,all_result)
 
