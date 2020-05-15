@@ -8,8 +8,8 @@ import pandas
 import random
 import PIL.Image as Image
 from PIL import ImageStat
-
-
+import cv2
+import random
 
 import pdb
 
@@ -33,7 +33,7 @@ def random_sample(img_names, labels):
 
 
 class dataset(data.Dataset):
-    def __init__(self, Config, anno, swap_size=[7,7],sw=None,common_aug=None, swap=None, totensor=None, train=False, train_val=False, test=False,val=False,):
+    def __init__(self, Config, anno,swap_size=[7,7],sw=None,common_aug=None, swap=None, totensor=None, train=False, train_val=False, test=False,val=False,):
         self.root_path = Config.rawdata_root
         self.numcls = Config.numcls
         self.dataset = Config.dataset
@@ -42,6 +42,7 @@ class dataset(data.Dataset):
         self.no_bbox=Config.no_bbox
         self.bbox=Config.bbox
         self.multi=Config.multi
+        self.size=Config.size
         if self.bbox:
             if isinstance(anno, pandas.core.frame.DataFrame):
                 # a=anno['image_path'].tolist()
@@ -85,30 +86,20 @@ class dataset(data.Dataset):
 
     def __getitem__(self, item):
         if self.bbox:
-            img_path = self.paths[item]
-            img_path =img_path.encode('utf-8')
-            img = self.pil_loader(img_path)
+            img=cv2.imread(self.paths[item])
             if not self.no_bbox:
                 x0=self.x0[item]
-                x1=min(self.x1[item],img.size[0])
+                x1=min(self.x1[item],img.shape[1])
                 y0=self.y0[item]
-                y1=min(self.y1[item],img.size[1])
+                y1=min(self.y1[item],img.shape[0])
                 if not x0==x1==y1==0:
-                    bbox=(x0,y0,x1,y1)
-                    img=img.crop(bbox)
-                else:
-                    bbox = (0, y0,img.size[0],img.size[1])
-                    img = img.crop(bbox)
+                    img = img[y0:y1, x0:x1]
+                else:# 输入的参数为零，取全图，如果有y0值，取下半图
+                    img = img[y0:img.shape[0], 0:img.shape[1]]
+            img = self.transform(img)
             if self.test:
                 img = self.totensor(img)
                 return img, None,self.paths[item]
-        else:
-            img_path = os.path.join(self.root_path, self.paths[item])
-            img = self.pil_loader(img_path)
-        if self.val:
-            img = self.totensor(img)
-            label = self.labels[item]
-            return img, label, self.paths[item]
 
         img_unswap = self.common_aug(img) if not self.common_aug is None else img
 
@@ -169,8 +160,18 @@ class dataset(data.Dataset):
         weights = [self.labels.count(x) for x in range(self.numcls)]
         return torch.utils.data.sampler.WeightedRandomSampler(weights, num_samples=img_nums)
 
-
-
+    def transform(self,img):
+        # 小于0.3转换成pil resize
+        if random.random() < 0.3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
+            img = cv2.cvtColor(img, cv2.COLOR_YUV2BGR)
+        if random.random() < 0.3:
+            img = Image.fromarray(img)
+            img = img.resize(self.size,Image.BILINEAR)
+        else:
+            img = cv2.resize(img, self.size, interpolation=cv2.INTER_LINEAR)
+            img = Image.fromarray(img)
+        return img
 
 def collate_multi_fn4train(batch):
     imgs = []

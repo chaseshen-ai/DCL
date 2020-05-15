@@ -124,6 +124,7 @@ if __name__ == '__main__':
     Config.no_loc = args.no_loc
     Config.add_images = args.add_images
     Config.multi=args.multi
+    Config.size=(args.crop_resolution,args.crop_resolution)
     assert Config.cls_2 ^ Config.cls_2xmul
 
 
@@ -140,7 +141,7 @@ if __name__ == '__main__':
     # inital dataloader
     train_set = dataset(Config = Config,\
                         anno = Config.train_anno,\
-                        common_aug = transformers["common_aug"],\
+                        common_aug = transformers["None"],\
                         swap = transformers["swap"],\
                         totensor = transformers["train_totensor"],\
                         train = True)

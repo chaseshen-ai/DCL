@@ -13,33 +13,33 @@ pretrained_model = {'resnet50' : './models/resnet50-19c8e357.pth',}
 # transforms dict
 def load_data_transformers(resize_reso=512, crop_reso=448, swap_num=[7, 7]):
     center_resize = 600
-    Normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    Normalize = transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1])
     data_transforms = {
        	'swap': transforms.Compose([
             transforms.Randomswap((swap_num[0], swap_num[1])),
         ]),
         'common_aug': transforms.Compose([
-            transforms.Resize((resize_reso, resize_reso)),
+            # transforms.Resize((resize_reso, resize_reso)),
             transforms.RandomRotation(degrees=15),
             transforms.RandomCrop((crop_reso,crop_reso)),
             transforms.RandomHorizontalFlip(),
         ]),
         'train_totensor': transforms.Compose([
-            transforms.Resize((crop_reso, crop_reso)),
-            # ImageNetPolicy(),
+            # transforms.Resize((crop_reso, crop_reso)),
+            ImageNetPolicy(),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1]),
         ]),
         'val_totensor': transforms.Compose([
-            transforms.Resize((crop_reso, crop_reso)),
+            # transforms.Resize((crop_reso, crop_reso)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1]),
         ]),
         'test_totensor': transforms.Compose([
-            transforms.Resize((resize_reso, resize_reso)),
+            # transforms.Resize((resize_reso, resize_reso)),
             transforms.CenterCrop((crop_reso, crop_reso)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1]),
         ]),
         'None': None,
     }
@@ -181,6 +181,9 @@ class LoadConfig(object):
         if not os.path.exists(self.log_folder):
             os.mkdir(self.log_folder)
 
+        self.use_loss1=True
+        if self.use_loss1:
+            print("Using loss1 loss")
         # if self.dataset=='ItargeCar' or self.dataset=='ItargeCar_NoWind' or self.dataset=='ItargeCar_Brand' or args.dataset =='ItargeCar_Mix' or args.dataset =='ItargeCar_0520':
         self.bbox=True
         # else:

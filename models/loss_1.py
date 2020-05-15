@@ -32,7 +32,7 @@ class Loss_1(nn.Module): #1d and 2d
             select  = torch.FloatTensor(len(prob), C).zero_().cuda()
             select.scatter_(1, target, 1.)
 
-        # probs = torch.gather(prob, 1, target)
+        probs = torch.gather(prob, 1, target)
         prob       = (prob*select).sum(1).view(-1,1)
         prob       = torch.clamp(prob,1e-8,1-1e-8)
         batch_loss = - prob.log()

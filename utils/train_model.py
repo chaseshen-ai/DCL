@@ -115,12 +115,14 @@ def train(Config,
                     test_loss,pro = get_loss1(outputs[0], labels)
                     # 创建品牌到车系的映射表
                     test_loss2,_ = get_loss1(outputs[0], labels,brand_prob=pro)
-
             else:
                 if Config.use_focal_loss:
                     ce_loss = get_focal_loss(outputs[0], labels)
                 else:
-                    ce_loss = get_ce_loss(outputs[0], labels)
+                    if Config.use_loss1:
+                        ce_loss, pro = get_loss1(outputs[0], labels)
+                    else:
+                        ce_loss = get_ce_loss(outputs[0], labels)
 
             if Config.use_Asoftmax:
                 fetch_batch = labels.size(0)
@@ -140,7 +142,11 @@ def train(Config,
                 if Config.use_focal_loss:
                     swap_loss = get_focal_loss(outputs[1], labels_swap) * beta_
                 else:
-                    swap_loss = get_ce_loss(outputs[1], labels_swap) * beta_
+                    if Config.use_loss1:
+                        # beta=pro.repeat(1,2).reshape(-1,1)
+                        swap_loss, _ = get_loss1(outputs[1], labels_swap, brand_prob=pro)
+                    else:
+                        swap_loss = get_ce_loss(outputs[1], labels_swap) * beta_
                 loss += swap_loss
                 if not Config.no_loc:
                     law_loss = add_loss(outputs[2], swap_law) * gamma_
