@@ -24,7 +24,7 @@ import cv2
 from transforms import transforms
 from models.LoadModel import MainModel
 from utils.dataset_DCL import collate_fn4train, collate_fn4test, collate_fn4val, dataset
-from config import LoadConfig, load_data_transformers
+from config_inference import LoadConfig, load_data_transformers
 # from utils.test_tool import set_text, save_multi_img, cls_base_acc
 
 # if int(torch.__version__.split('.')[0])< 1 and int(torch.__version__.split('.')[1])< 41:
@@ -216,8 +216,9 @@ if __name__ == '__main__':
     args.batch_size=1
     args.num_workers=1
     args.version='test'
-    args.resume="/NAS/shenjintong/DCL/net_model/DCL_0520data_147_129_582_ItargeCar_0520/model_best.pth"
-    args.detail='feature'
+    # args.resume="/NAS/shenjintong/DCL/net_model/DCL_0520data_147_129_refine_51415_ItargeCar_0520/model_best.pth"
+    args.resume ="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/DCL/DCL.pth"
+    args.discribe='feature'
     args.resize_resolution=147
     args.crop_resolution=129
     args.anno="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/inference_set.csv"
@@ -237,7 +238,7 @@ if __name__ == '__main__':
     Config.cls_2 = False
     Config.no_loc = args.no_loc
     # sw define
-
+    Config.size=(args.crop_resolution,args.crop_resolution)
     if args.log_dir:
         sw_log = args.log_dir
         sw = SummaryWriter(log_dir=sw_log)
@@ -246,7 +247,7 @@ if __name__ == '__main__':
 
     # 由于args.version的作用只是自动选择对应的标记文件进行读取，去除version设置直接使用文件路径输入
     if args.anno:
-        dataset_pd = pd.read_csv(args.anno,nrows=1)
+        dataset_pd = pd.read_csv(args.anno)
     else:
         dataset_pd = Config.val_anno if args.version == 'val' else Config.test_anno
 
@@ -289,7 +290,8 @@ if __name__ == '__main__':
     model.train(False)
 
     if args.feature:
-        feature = pd.DataFrame(columns=range(len(data_set)))
+        result=[]
+        # feature = pd.DataFrame(columns=range(len(data_set)))
 
     with torch.no_grad():
         result_1=[]
@@ -306,25 +308,24 @@ if __name__ == '__main__':
             count_bar.update(1)
             inputs, labels, img_name = data_val
             inputs = Variable(inputs.cuda())
-            print(inputs.shape)
             # labels = Variable(torch.from_numpy(np.array(labels)).long().cuda())
             T1=time.time()
             outputs = model(inputs)
             outputs_pred = outputs[0]
-            print(outputs_pred)
             # add all reuslt save
             # all_result.extend(outputs_pred.cpu().numpy().tolist())
-            # if args.feature:
-            #     feature[batch_cnt_val]=pd.Series(outputs_pred.cpu().numpy()[0])
             outputs_pred_soft=F.softmax(outputs_pred)
             # print(time.time()-T1)
             Total_time+=time.time()-T1
 
             # add all reuslt save
             all_result.extend(outputs_pred_soft.cpu().numpy().tolist())
-
-            outputs_confidence, outputs_predicted = torch.max(outputs_pred_soft, 1)
-
+            # outputs_confidence, outputs_predicted = torch.max(outputs_pred_soft, 1)
+            outputs_confidence, outputs_predicted=torch.max(outputs_pred, 1)
+            if args.feature:
+                # result.append(outputs_pred.cpu().numpy()[0].tolist()[])
+                result.append(outputs_confidence.cpu().numpy()[0].tolist())
+                result.append(outputs_predicted.cpu().numpy()[0].tolist())
             if args.CAM:
                 # visualization of the feature maps
                 if args.opencv_save:
@@ -356,8 +357,13 @@ if __name__ == '__main__':
                 save_path = os.path.join(args.result_path, args.discribe, 'val_raw_result.csv')
             dataset_pd.to_csv(save_path)
             if args.feature:
-                save_path=os.path.join(args.result_path, args.discribe, 'feature.csv')
-                feature.to_csv(save_path)
+                m_index = pd.MultiIndex.from_product([['cv'], range(10), ['feature', 'index']],
+                                                     names=["resize_type", "image_index", "predicted"])
+                predicted = pd.DataFrame(result, index=m_index)
+                predicted.columns.names = ['Top1-5']
+                predicted.to_csv("/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/predicted_cv.csv")
+                # save_path=os.path.join(args.result_path, args.discribe, 'feature.csv')
+                # feature.to_csv(save_path)
             # save_npy = os.path.join(args.result_path, args.save_name.split('.')[0]+'.npy')
             # np.save(save_npy,all_result)
 

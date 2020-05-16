@@ -96,10 +96,12 @@ class dataset(data.Dataset):
                     img = img[y0:y1, x0:x1]
                 else:# 输入的参数为零，取全图，如果有y0值，取下半图
                     img = img[y0:img.shape[0], 0:img.shape[1]]
-            img = self.transform(img)
             if self.test:
+                img = cv2.resize(img, self.size, interpolation=cv2.INTER_LINEAR)
+                img = Image.fromarray(img)
                 img = self.totensor(img)
                 return img, None,self.paths[item]
+        img = self.transform(img)
 
         img_unswap = self.common_aug(img) if not self.common_aug is None else img
 
