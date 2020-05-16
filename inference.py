@@ -24,7 +24,7 @@ import cv2
 from transforms import transforms
 from models.LoadModel import MainModel
 from utils.dataset_DCL import collate_fn4train, collate_fn4test, collate_fn4val, dataset
-from config_inference import LoadConfig, load_data_transformers
+from config import LoadConfig, load_data_transformers
 # from utils.test_tool import set_text, save_multi_img, cls_base_acc
 
 # if int(torch.__version__.split('.')[0])< 1 and int(torch.__version__.split('.')[1])< 41:
@@ -211,19 +211,19 @@ def single_CAM(feature_conv, weight_softmax, class_idx,shape,dataset_pd,sw=None)
 
 if __name__ == '__main__':
     args = parse_args()
-    args.dataset='ItargeCar_0520'
-    args.backbone='resnet50'
-    args.batch_size=1
-    args.num_workers=1
-    args.version='test'
-    # args.resume="/NAS/shenjintong/DCL/net_model/DCL_0520data_147_129_refine_51415_ItargeCar_0520/model_best.pth"
-    args.resume ="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/DCL/DCL.pth"
-    args.discribe='feature'
-    args.resize_resolution=147
-    args.crop_resolution=129
-    args.anno="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/inference_set.csv"
-    args.result_path="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/"
-    args.feature=True
+    # args.dataset='ItargeCar_0520'
+    # args.backbone='resnet50'
+    # args.batch_size=1
+    # args.num_workers=1
+    # args.version='test'
+    # # args.resume="/NAS/shenjintong/DCL/net_model/DCL_0520data_147_129_refine_51415_ItargeCar_0520/model_best.pth"
+    # args.resume ="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/DCL/DCL.pth"
+    # args.discribe='feature'
+    # args.resize_resolution=147
+    # args.crop_resolution=129
+    # args.anno="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/inference_set.csv"
+    # args.result_path="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/"
+    # args.feature=True
     print(args)
     print(args.anno)
     # # todo: debug

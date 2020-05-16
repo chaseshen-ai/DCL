@@ -181,6 +181,7 @@ class LoadConfig(object):
         if not os.path.exists(self.log_folder):
             os.mkdir(self.log_folder)
 
+        self.multi=False
         self.use_loss1=True
         if self.use_loss1:
             print("Using loss1 loss")
