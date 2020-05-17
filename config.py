@@ -13,7 +13,10 @@ pretrained_model = {'resnet50' : './models/resnet50-19c8e357.pth',}
 # transforms dict
 def load_data_transformers(resize_reso=512, crop_reso=448, swap_num=[7, 7]):
     center_resize = 600
-    Normalize = transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1])
+    # rgb
+    # Normalize = transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1])
+    # bgr
+    Normalize = transforms.Normalize([0.406,0.456,0.485], [1, 1, 1])
     data_transforms = {
        	'swap': transforms.Compose([
             transforms.Randomswap((swap_num[0], swap_num[1])),
@@ -28,18 +31,18 @@ def load_data_transformers(resize_reso=512, crop_reso=448, swap_num=[7, 7]):
             # transforms.Resize((crop_reso, crop_reso)),
             ImageNetPolicy(),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1]),
+            transforms.Normalize([0.406,0.456,0.485], [1, 1, 1]),
         ]),
         'val_totensor': transforms.Compose([
             # transforms.Resize((crop_reso, crop_reso)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1]),
+            transforms.Normalize([0.406,0.456,0.485], [1, 1, 1]),
         ]),
         'test_totensor': transforms.Compose([
             # transforms.Resize((resize_reso, resize_reso)),
             # transforms.CenterCrop((crop_reso, crop_reso)),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [1, 1, 1]),
+            transforms.Normalize([0.406,0.456,0.485], [1, 1, 1]),
         ]),
         'None': None,
     }
