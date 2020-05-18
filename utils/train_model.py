@@ -120,7 +120,9 @@ def train(Config,
                     ce_loss = get_focal_loss(outputs[0], labels)
                 else:
                     if Config.use_loss1:
-                        ce_loss, pro = get_loss1(outputs[0], labels)
+                        # 直接内部组合两个loss
+                        ce_loss_1, pro = get_loss1(outputs[0], labels)
+                        ce_loss=0
                     else:
                         ce_loss = get_ce_loss(outputs[0], labels)
 
@@ -159,7 +161,11 @@ def train(Config,
             torch.cuda.synchronize()
 
             if Config.use_dcl:
-                if Config.no_loc:
+                if Config.use_loss1:
+                    print(
+                        'step: {:-8d} / {:d}  loss: {:6.4f}  ce_loss: {:6.4f} swap_loss: {:6.4f} '.format(step,train_epoch_step,loss.detach().item(),ce_loss_1.detach().item(),swap_loss.detach().item()),
+                        flush=True)
+                elif Config.no_loc:
                     print('step: {:-8d} / {:d} loss=ce_loss+swap_loss+law_loss: {:6.4f} = {:6.4f} + {:6.4f} '.format(step, train_epoch_step, loss.detach().item(), ce_loss.detach().item(),swap_loss.detach().item()), flush=True)
                 else:
                     print('step: {:-8d} / {:d} loss=ce_loss+swap_loss+law_loss: {:6.4f} = {:6.4f} + {:6.4f} + {:6.4f} '.format(step, train_epoch_step, loss.detach().item(), ce_loss.detach().item(), swap_loss.detach().item(), law_loss.detach().item()), flush=True)

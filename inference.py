@@ -213,15 +213,15 @@ if __name__ == '__main__':
     args = parse_args()
     # args.dataset='ItargeCar_0520'
     # args.backbone='resnet50'
-    # args.batch_size=1
-    # args.num_workers=1
+    # args.batch_size=2
+    # args.num_workers=2
     # args.version='test'
-    # # args.resume="/NAS/shenjintong/DCL/net_model/DCL_0520data_147_129_refine_51415_ItargeCar_0520/model_best.pth"
-    # args.resume ="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/DCL/DCL.pth"
+    # args.resume="/NAS/shenjintong/DCL/net_model/DCL_0520data_147_129_refine_51415_ItargeCar_0520/model_best.pth"
+    # # args.resume ="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/DCL/DCL.pth"
     # args.discribe='feature'
     # args.resize_resolution=147
     # args.crop_resolution=129
-    # args.anno="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/inference_set.csv"
+    # # args.anno="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/inference_set.csv"
     # args.result_path="/NAS/shenjintong/Tools/mmdnn/pytorch2caffe/"
     # args.feature=True
     print(args)
@@ -286,7 +286,7 @@ if __name__ == '__main__':
     weight_softmax = np.squeeze(params[-3].data.numpy())
 
     model.cuda()
-    # model = nn.DataParallel(model)
+    model = nn.DataParallel(model)
     model.train(False)
 
     if args.feature:

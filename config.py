@@ -39,7 +39,7 @@ def load_data_transformers(resize_reso=512, crop_reso=448, swap_num=[7, 7]):
             transforms.Normalize([0.406,0.456,0.485], [1, 1, 1]),
         ]),
         'test_totensor': transforms.Compose([
-            # transforms.Resize((resize_reso, resize_reso)),
+            transforms.Resize((crop_reso, crop_reso)),
             # transforms.CenterCrop((crop_reso, crop_reso)),
             transforms.ToTensor(),
             transforms.Normalize([0.406,0.456,0.485], [1, 1, 1]),
