@@ -43,6 +43,7 @@ class dataset(data.Dataset):
         self.bbox=Config.bbox
         self.multi=Config.multi
         self.size=Config.size
+        self.val=val
         if self.bbox:
             if isinstance(anno, pandas.core.frame.DataFrame):
                 # a=anno['image_path'].tolist()
@@ -54,11 +55,15 @@ class dataset(data.Dataset):
                     self.y0=anno['y0'].tolist()
                     self.y1=anno['y1'].tolist()
                 if not test:
-                    self.labels = anno['label'].tolist()
                     if self.multi:
+                        self.labels = anno['slabel'].tolist()
                         self.blabels = anno['blabel'].tolist()
                         self.clabels = anno['clabel'].tolist()
                         self.tlabels = anno['tlabel'].tolist()
+                    else:
+                        self.labels = anno['label'].tolist()
+
+
             else:
                 print('Error: wrong dataset input')
         else:
@@ -79,7 +84,6 @@ class dataset(data.Dataset):
         self.train = train
         self.swap_size = swap_size
         self.test = test
-        self.val = val
 
     def __len__(self):
         return len(self.paths)
@@ -101,16 +105,24 @@ class dataset(data.Dataset):
                 img = Image.fromarray(img)
                 img = self.totensor(img)
                 return img, None,self.paths[item]
-        img = self.transform(img)
-
-        img_unswap = self.common_aug(img) if not self.common_aug is None else img
-
-        image_unswap_list = self.crop_image(img_unswap, self.swap_size)
-
-        swap_range = self.swap_size[0] * self.swap_size[1]
-        swap_law1 = [(i-(swap_range//2))/swap_range for i in range(swap_range)]
-
+            elif self.val:
+                img = cv2.resize(img, self.size, interpolation=cv2.INTER_LINEAR)
+                img = Image.fromarray(img)
+                img = self.totensor(img)
+                label = self.labels[item]
+                if self.multi:
+                    blabel = self.blabels[item]
+                    clabel = self.clabels[item]
+                    tlabel = self.tlabels[item]
+                    return img, label, blabel, clabel, tlabel, self.paths[item]
+                else:
+                    return img, label, self.paths[item]
         if self.train:
+            img = self.transform(img)
+            img_unswap = self.common_aug(img) if not self.common_aug is None else img
+            image_unswap_list = self.crop_image(img_unswap, self.swap_size)
+            swap_range = self.swap_size[0] * self.swap_size[1]
+            swap_law1 = [(i - (swap_range // 2)) / swap_range for i in range(swap_range)]
             img_swap = self.swap(img_unswap)
             image_swap_list = self.crop_image(img_swap, self.swap_size)
             unswap_stats = [sum(ImageStat.Stat(im).mean) for im in image_unswap_list]
@@ -134,12 +146,6 @@ class dataset(data.Dataset):
                 return img_unswap, img_swap, label, label_swap, swap_law1, swap_law2,blabel,clabel,tlabel, self.paths[item]
             else:
                 return img_unswap, img_swap, label, label_swap, swap_law1, swap_law2, self.paths[item]
-        else:
-            label = self.labels[item]
-            swap_law2 = [(i-(swap_range//2))/swap_range for i in range(swap_range)]
-            label_swap = label
-            img_unswap = self.totensor(img_unswap)
-            return img_unswap, label, label_swap, swap_law1, swap_law2, self.paths[item]
 
     def pil_loader(self,imgpath):
         with open(imgpath, 'rb') as f:
@@ -268,3 +274,20 @@ def collate_fn4test(batch):
         label.append(sample[1])
         img_name.append(sample[-1])
     return torch.stack(imgs, 0), label, img_name
+
+
+def collate_multi_fn4test(batch):
+    imgs = []
+    label = []
+    img_name = []
+    blabel=[]
+    clabel=[]
+    tlabel=[]
+    for sample in batch:
+        imgs.append(sample[0])
+        label.append(sample[1])
+        blabel.append(sample[2])
+        clabel.append(sample[3])
+        tlabel.append(sample[4])
+        img_name.append(sample[-1])
+    return torch.stack(imgs, 0),label,blabel,clabel,tlabel,img_name

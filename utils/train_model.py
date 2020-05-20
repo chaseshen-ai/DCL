@@ -72,6 +72,7 @@ def train(Config,
     get_angle_loss = AngleLoss()
 
     for epoch in range(start_epoch,epoch_num-1):
+        optimizer.step()
         exp_lr_scheduler.step(epoch)
         model.train(True)
 
@@ -109,12 +110,16 @@ def train(Config,
             else:
                 outputs = model(inputs, None)
             if Config.multi:
-                ce_loss=get_ce_loss(outputs[0], labels)+get_ce_loss(outputs[0], blabels)+get_ce_loss(outputs[0], clabels)+get_ce_loss(outputs[0], tlabels)
-
-                if Config.brand_relation:
-                    test_loss,pro = get_loss1(outputs[0], labels)
-                    # 创建品牌到车系的映射表
-                    test_loss2,_ = get_loss1(outputs[0], labels,brand_prob=pro)
+                if Config.use_loss1:
+                    b_loss, pro_b = get_loss1(outputs[2], blabels)
+                    # 关联品牌标签和车型
+                    t_loss, _ = get_loss1(outputs[4], tlabels, brand_prob=pro_b)
+                    s_loss, pro_s = get_loss1(outputs[0], labels, brand_prob=pro_b)
+                    c_loss,_ = get_loss1(outputs[3], clabels)
+                    ce_loss= b_loss+t_loss+s_loss+c_loss*0.2
+                else:
+                    ce_loss = get_ce_loss(outputs[0], labels) + get_ce_loss(outputs[0], blabels) + get_ce_loss(
+                        outputs[0], clabels) + get_ce_loss(outputs[0], tlabels)
             else:
                 if Config.use_focal_loss:
                     ce_loss = get_focal_loss(outputs[0], labels)
@@ -145,8 +150,7 @@ def train(Config,
                     swap_loss = get_focal_loss(outputs[1], labels_swap) * beta_
                 else:
                     if Config.use_loss1:
-                        # beta=pro.repeat(1,2).reshape(-1,1)
-                        swap_loss, _ = get_loss1(outputs[1], labels_swap, brand_prob=pro)
+                        swap_loss, _ = get_loss1(outputs[1], labels_swap, brand_prob=pro_s)
                     else:
                         swap_loss = get_ce_loss(outputs[1], labels_swap) * beta_
                 loss += swap_loss
@@ -157,14 +161,18 @@ def train(Config,
             loss.backward()
             torch.cuda.synchronize()
 
-            optimizer.step()
+
             torch.cuda.synchronize()
 
             if Config.use_dcl:
-                if Config.use_loss1:
+                if Config.multi:
                     print(
-                        'step: {:-8d} / {:d}  loss: {:6.4f}  ce_loss: {:6.4f} swap_loss: {:6.4f} '.format(step,train_epoch_step,loss.detach().item(),ce_loss_1.detach().item(),swap_loss.detach().item()),
+                        'step: {:-8d} / {:d}  loss: {:6.4f}  ce_loss: {:6.4f} swap_loss: {:6.4f} '.format(step,train_epoch_step,loss.detach().item(),ce_loss.detach().item(),swap_loss.detach().item()),
                         flush=True)
+                # if Config.use_loss1:
+                #     print(
+                #         'step: {:-8d} / {:d}  loss: {:6.4f}  ce_loss: {:6.4f} swap_loss: {:6.4f} '.format(step,train_epoch_step,loss.detach().item(),ce_loss.detach().item(),swap_loss.detach().item()),
+                #         flush=True)
                 elif Config.no_loc:
                     print('step: {:-8d} / {:d} loss=ce_loss+swap_loss+law_loss: {:6.4f} = {:6.4f} + {:6.4f} '.format(step, train_epoch_step, loss.detach().item(), ce_loss.detach().item(),swap_loss.detach().item()), flush=True)
                 else:
@@ -181,20 +189,31 @@ def train(Config,
                 print(32*'-', flush=True)
                 print('step: {:d} / {:d} global_step: {:8.2f} train_epoch: {:04d} rec_train_loss: {:6.4f}'.format(step, train_epoch_step, 1.0*step/train_epoch_step, epoch, train_loss_recorder.get_val()), flush=True)
                 print('current lr:%s' % exp_lr_scheduler.get_lr(), flush=True)
-                if eval_train_flag:
-                    trainval_acc1, trainval_acc2, trainval_acc3 = eval_turn(Config, model, data_loader['trainval'], 'trainval', epoch)
-                    if abs(trainval_acc1 - trainval_acc3) < 0.01:
-                        eval_train_flag = False
-
-                val_acc1, val_acc2, val_acc3 = eval_turn(Config, model, data_loader['val'], 'val', epoch)
-                is_best = val_acc1 > best_prec1
-                best_prec1 = max(val_acc1, best_prec1)
-                filename='weights_%d_%d_%.4f_%.4f.pth' % (epoch, batch_cnt, val_acc1, val_acc3)
-                save_checkpoint(model.state_dict(), is_best, save_dir,filename)
-                sw.add_scalar("Train_Loss", loss.detach().item(), epoch)
-                sw.add_scalar("Val_Accurancy",val_acc1, epoch)
-                sw.add_scalar("learning_rate",exp_lr_scheduler.get_lr()[1] , epoch)
-
+                if Config.multi:
+                    val_acc_s, val_acc_b, val_acc_c, val_acc_t = eval_turn(Config, model, data_loader['val'], 'val', epoch)
+                    is_best = val_acc_s > best_prec1
+                    best_prec1 = max(val_acc_s, best_prec1)
+                    filename='weights_%d_%d_%.4f_%.4f.pth' % (epoch, batch_cnt, val_acc_s, val_acc_b)
+                    save_checkpoint(model.state_dict(), is_best, save_dir,filename)
+                    sw.add_scalar("Train_Loss/Total_loss", loss.detach().item(), epoch)
+                    sw.add_scalar("Train_Loss/b_loss", b_loss.detach().item(), epoch)
+                    sw.add_scalar("Train_Loss/t_loss", t_loss.detach().item(), epoch)
+                    sw.add_scalar("Train_Loss/s_loss", s_loss.detach().item(), epoch)
+                    sw.add_scalar("Train_Loss/c_loss", c_loss.detach().item(), epoch)
+                    sw.add_scalar("Accurancy/val_acc_s",val_acc_s, epoch)
+                    sw.add_scalar("Accurancy/val_acc_b",val_acc_b, epoch)
+                    sw.add_scalar("Accurancy/val_acc_c",val_acc_c, epoch)
+                    sw.add_scalar("Accurancy/val_acc_t",val_acc_t, epoch)
+                    sw.add_scalar("learning_rate",exp_lr_scheduler.get_lr()[1] , epoch)
+                else:
+                    val_acc1, val_acc2, val_acc3 = eval_turn(Config, model, data_loader['val'], 'val', epoch)
+                    is_best = val_acc1 > best_prec1
+                    best_prec1 = max(val_acc1, best_prec1)
+                    filename='weights_%d_%d_%.4f_%.4f.pth' % (epoch, batch_cnt, val_acc1, val_acc3)
+                    save_checkpoint(model.state_dict(), is_best, save_dir,filename)
+                    sw.add_scalar("Train_Loss", loss.detach().item(), epoch)
+                    sw.add_scalar("Val_Accurancy",val_acc1, epoch)
+                    sw.add_scalar("learning_rate",exp_lr_scheduler.get_lr()[1] , epoch)
                 torch.cuda.empty_cache()
 
             # save only

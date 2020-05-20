@@ -20,7 +20,7 @@ from utils.train_model import train
 from models.LoadModel import MainModel
 from config import LoadConfig, load_data_transformers
 # from config_no_bias import LoadConfig, load_data_transformers
-from utils.dataset_DCL import collate_fn4train, collate_fn4val,collate_multi_fn4train,collate_fn4test, collate_fn4backbone, dataset
+from utils.dataset_DCL import collate_fn4train, collate_fn4val,collate_multi_fn4train,collate_fn4test, collate_fn4backbone, dataset,collate_multi_fn4test
 from tensorboardX import SummaryWriter
 import pdb
 
@@ -90,6 +90,8 @@ def parse_args():
                     action='store_true')
     parser.add_argument('--b_relat', dest='brand_relation',
                     action='store_true')
+    parser.add_argument('--loss1', dest='loss1',
+                    action='store_true')
     parser.add_argument('--swap_num', default=[7, 7],
                     nargs=2, metavar=('swap1', 'swap2'),
                     type=int, help='specify a range')
@@ -123,7 +125,6 @@ if __name__ == '__main__':
     Config.log_dir = args.log_dir
     Config.no_loc = args.no_loc
     Config.add_images = args.add_images
-    Config.multi=args.multi
     Config.size=(args.crop_resolution,args.crop_resolution)
     assert Config.cls_2 ^ Config.cls_2xmul
 
@@ -146,13 +147,6 @@ if __name__ == '__main__':
                         totensor = transformers["train_totensor"],\
                         train = True)
 
-    trainval_set = dataset(Config = Config,\
-                        anno = Config.train_anno,\
-                        common_aug = transformers["None"],\
-                        swap = transformers["None"],\
-                        totensor = transformers["val_totensor"],\
-                        train = False,
-                        train_val = True)
 
     val_set = dataset(Config = Config,\
                       anno = Config.val_anno,\
@@ -172,22 +166,11 @@ if __name__ == '__main__':
 
     setattr(dataloader['train'], 'total_item_len', len(train_set))
 
-    dataloader['trainval'] = torch.utils.data.DataLoader(trainval_set,\
-                                                batch_size=args.val_batch,\
-                                                shuffle=False,\
-                                                num_workers=args.val_num_workers,\
-                                                collate_fn=collate_fn4val if not Config.use_backbone else collate_fn4backbone,
-                                                drop_last=True if Config.use_backbone else False,
-                                                pin_memory=True)
-
-    setattr(dataloader['trainval'], 'total_item_len', len(trainval_set))
-    setattr(dataloader['trainval'], 'num_cls', Config.numcls)
-
     dataloader['val'] = torch.utils.data.DataLoader(val_set,\
                                                 batch_size=args.val_batch,\
                                                 shuffle=False,\
                                                 num_workers=args.val_num_workers,\
-                                                collate_fn=collate_fn4test if not Config.use_backbone else collate_fn4backbone,
+                                                collate_fn=collate_fn4test if not Config.multi else collate_multi_fn4test,
                                                 drop_last=True if Config.use_backbone else False,
                                                 pin_memory=True)
 

@@ -297,7 +297,7 @@ if __name__ == '__main__':
         result_1=[]
         confidence_1=[]
         all_result=[]
-
+        feature=[]
         val_size = ceil(len(data_set) / dataloader.batch_size)
         result_gather = {}
         count_bar = tqdm(total=dataloader.__len__())
@@ -320,8 +320,8 @@ if __name__ == '__main__':
 
             # add all reuslt save
             all_result.extend(outputs_pred_soft.cpu().numpy().tolist())
-            # outputs_confidence, outputs_predicted = torch.max(outputs_pred_soft, 1)
-            outputs_confidence, outputs_predicted=torch.max(outputs_pred, 1)
+            outputs_confidence, outputs_predicted = torch.max(outputs_pred_soft, 1)
+            outputs_feature,_= torch.max(outputs_pred, 1)
             if args.feature:
                 # result.append(outputs_pred.cpu().numpy()[0].tolist()[])
                 result.append(outputs_confidence.cpu().numpy()[0].tolist())
@@ -340,11 +340,14 @@ if __name__ == '__main__':
 
             result_1.extend(outputs_predicted.cpu().numpy().tolist())
             confidence_1.extend(outputs_confidence.cpu().numpy().tolist())
+            feature.extend(outputs_feature.cpu().numpy().tolist())
 
         all_result=np.array(all_result)
         predicted_1 = pd.Series(result_1)
+
         dataset_pd['predicted'] = predicted_1
         dataset_pd['confidence']=pd.Series(confidence_1)
+        dataset_pd['feature']=pd.Series(feature)
         average_time=Total_time/len(data_set)
         print("Average_time: %.4f" %average_time)
 

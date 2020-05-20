@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class Loss_1(nn.Module):  # 1d and 2d
+class Loss_2(nn.Module):  # 1d and 2d
 
     def __init__(self, gamma=2, size_average=True):
         super(Loss_1, self).__init__()
@@ -50,7 +50,7 @@ class Loss_1(nn.Module):  # 1d and 2d
         return loss, prob
 
 
-class Loss_1_1(nn.Module): #1d and 2d
+class Loss_1(nn.Module): #1d and 2d
  
     def __init__(self, gamma=2, size_average=True):
         super(Loss_1, self).__init__()

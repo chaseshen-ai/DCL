@@ -9,14 +9,19 @@ from config import pretrained_model
 
 import pdb
 
+
 class MainModel(nn.Module):
     def __init__(self, config):
         super(MainModel, self).__init__()
         self.use_dcl = config.use_dcl
         self.no_loc=config.no_loc
         self.num_classes = config.numcls
+        self.num_brand = config.numbrand
+        self.num_colour = config.numcolour
+        self.num_type = config.numtype
         self.backbone_arch = config.backbone
         self.use_Asoftmax = config.use_Asoftmax
+        self.multi = config.multi
         print(self.backbone_arch)
 
         if self.backbone_arch in dir(models):
@@ -40,7 +45,15 @@ class MainModel(nn.Module):
         if self.backbone_arch == 'se_resnet101':
             self.model = nn.Sequential(*list(self.model.children())[:-2])
         self.avgpool = nn.AdaptiveAvgPool2d(output_size=1)
+
+        # 用于年款或者车系的分类器
         self.classifier = nn.Linear(2048, self.num_classes, bias=False)
+        # 添加用于品牌的分类器
+        self.classifier_brand = nn.Linear(2048, self.num_brand, bias=False)
+        # 添加由于颜色的分类器
+        self.classifier_colour = nn.Linear(2048, self.num_colour, bias=False)
+        # 添加用于车型的分类器
+        self.classifier_type = nn.Linear(2048, self.num_type, bias=False)
 
         if self.use_dcl:
             if config.cls_2:
@@ -50,6 +63,7 @@ class MainModel(nn.Module):
             if not self.no_loc:
                 self.Convmask = nn.Conv2d(2048, 1, 1, stride=1, padding=0, bias=True)
             self.avgpool2 = nn.AvgPool2d(2, stride=2)
+
 
         if self.use_Asoftmax:
             self.Aclassifier = AngleLinear(2048, self.num_classes, bias=False)
@@ -68,12 +82,17 @@ class MainModel(nn.Module):
         cls = cls.view(cls.size(0), -1)
         out = []
         out.append(self.classifier(cls))
-
         if self.use_dcl:
             out.append(self.classifier_swap(cls))
             if not self.no_loc:
                 out.append(mask)
+        if self.multi:
+            out.append(self.classifier_brand(cls))
+            out.append(self.classifier_colour(cls))
+            out.append(self.classifier_type(cls))
+
         out.append(x)
+
 
         if self.use_Asoftmax:
             if last_cont is None:
@@ -84,5 +103,4 @@ class MainModel(nn.Module):
                 last_x = self.avgpool(last_x)
                 last_x = last_x.view(last_x.size(0), -1)
                 out.append(self.Aclassifier(last_x))
-
         return out
