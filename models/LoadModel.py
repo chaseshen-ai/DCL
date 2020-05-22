@@ -88,11 +88,9 @@ class MainModel(nn.Module):
                 out.append(mask)
         if self.multi:
             out.append(self.classifier_brand(cls))
-            out.append(self.classifier_colour(cls))
             out.append(self.classifier_type(cls))
-
+            out.append(self.classifier_colour(cls))
         out.append(x)
-
 
         if self.use_Asoftmax:
             if last_cont is None:

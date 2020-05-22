@@ -192,9 +192,10 @@ if __name__ == '__main__':
 
             outputs = model(inputs)
             s_pred = outputs[0]
-            b_pred = outputs[2]
+            b_pred = outputs[1]
+            t_pred = outputs[2]
             c_pred = outputs[3]
-            t_pred = outputs[4]
+
 
             s_pred_soft=F.softmax(s_pred)
             b_pred_soft=F.softmax(b_pred)

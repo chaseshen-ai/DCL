@@ -20,7 +20,7 @@ from utils.train_model import train
 from models.LoadModel import MainModel
 from config import LoadConfig, load_data_transformers
 # from config_no_bias import LoadConfig, load_data_transformers
-from utils.dataset_DCL import collate_fn4train, collate_fn4val,collate_multi_fn4train,collate_fn4test, collate_fn4backbone, dataset,collate_multi_fn4test
+from utils.dataset_DCL import collate_fn4train, collate_fn4val,collate_multi_fn4train,collate_fn4test, collate_fn4backbone, dataset,collate_multi_fn4test,collate_multi_fn4backbone
 from tensorboardX import SummaryWriter
 import pdb
 
@@ -118,6 +118,10 @@ if __name__ == '__main__':
     # args.train_num_workers=True
     # args.resize_resolution=147
     # args.crop_resolution=129
+    args.dataset='ItargeCar_0520_multi'
+    args.use_backbone=False
+    args.multi=True
+    args.cls_mul=True
     Config = LoadConfig(args, 'train')
     Config.brand_relation=args.brand_relation
     Config.cls_2 = args.cls_2
@@ -133,7 +137,6 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     # sw define
-    sw_log = Config.log_dir
     sw_log = Config.log_dir
     sw = SummaryWriter(log_dir=sw_log)
 
@@ -155,34 +158,56 @@ if __name__ == '__main__':
                       totensor = transformers["test_totensor"],\
                       val=True)
 
-    dataloader = {}
-    dataloader['train'] = torch.utils.data.DataLoader(train_set,\
-                                                batch_size=args.train_batch,\
-                                                shuffle=True,\
-                                                num_workers=args.train_num_workers,\
-                                                collate_fn=collate_fn4train if not Config.multi else collate_multi_fn4train,
-                                                drop_last=True if Config.use_backbone else False,
-                                                pin_memory=True)
+    if Config.use_dcl:
+        dataloader = {}
+        dataloader['train'] = torch.utils.data.DataLoader(train_set,\
+                                                    batch_size=args.train_batch,\
+                                                    shuffle=True,\
+                                                    num_workers=args.train_num_workers,\
+                                                    collate_fn=collate_fn4train if not Config.multi else collate_multi_fn4train,
+                                                    drop_last=True,
+                                                    pin_memory=True)
 
-    setattr(dataloader['train'], 'total_item_len', len(train_set))
+        setattr(dataloader['train'], 'total_item_len', len(train_set))
 
-    dataloader['val'] = torch.utils.data.DataLoader(val_set,\
-                                                batch_size=args.val_batch,\
-                                                shuffle=False,\
-                                                num_workers=args.val_num_workers,\
-                                                collate_fn=collate_fn4test if not Config.multi else collate_multi_fn4test,
-                                                drop_last=True if Config.use_backbone else False,
-                                                pin_memory=True)
+        dataloader['val'] = torch.utils.data.DataLoader(val_set,\
+                                                    batch_size=args.val_batch,\
+                                                    shuffle=False,\
+                                                    num_workers=args.val_num_workers,\
+                                                    collate_fn=collate_fn4test if not Config.multi else collate_multi_fn4test,
+                                                    drop_last=True,
+                                                    pin_memory=True)
 
-    setattr(dataloader['val'], 'total_item_len', len(val_set))
-    setattr(dataloader['val'], 'num_cls', Config.numcls)
+        setattr(dataloader['val'], 'total_item_len', len(val_set))
+        setattr(dataloader['val'], 'num_cls', Config.numcls)
+    else:
+        dataloader = {}
+        dataloader['train'] = torch.utils.data.DataLoader(train_set, \
+                                                          batch_size=args.train_batch, \
+                                                          shuffle=True, \
+                                                          num_workers=args.train_num_workers, \
+                                                          collate_fn=collate_fn4backbone if not Config.multi else collate_multi_fn4backbone,
+                                                          drop_last=True,
+                                                          pin_memory=True)
 
+        setattr(dataloader['train'], 'total_item_len', len(train_set))
+
+        dataloader['val'] = torch.utils.data.DataLoader(val_set, \
+                                                        batch_size=args.val_batch, \
+                                                        shuffle=False, \
+                                                        num_workers=args.val_num_workers, \
+                                                        collate_fn=collate_fn4backbone if not Config.multi else collate_multi_fn4backbone,
+                                                        drop_last=True,
+                                                        pin_memory=True)
+
+        setattr(dataloader['val'], 'total_item_len', len(val_set))
+        setattr(dataloader['val'], 'num_cls', Config.numcls)
 
     cudnn.benchmark = True
 
     print('Choose model and train set', flush=True)
     model = MainModel(Config)
-
+    print(model)
     # load model
     if (args.resume is None) and (not args.auto_resume):
         print('train from imagenet pretrained models ...', flush=True)
@@ -223,16 +248,28 @@ if __name__ == '__main__':
     model = nn.DataParallel(model)
 
     # optimizer prepare
-    if Config.use_backbone:
-        ignored_params = list(map(id, model.module.classifier.parameters()))
-    else:
+    if Config.use_dcl:
         ignored_params1 = list(map(id, model.module.classifier.parameters()))
         ignored_params2 = list(map(id, model.module.classifier_swap.parameters()))
         if not args.no_loc:
             ignored_params3 = list(map(id, model.module.Convmask.parameters()))
             ignored_params = ignored_params1 + ignored_params2 + ignored_params3
+        elif Config.multi:
+            ignored_params3 = list(map(id, model.module.classifier_brand.parameters()))
+            ignored_params4 = list(map(id, model.module.classifier_type.parameters()))
+            ignored_params5 = list(map(id, model.module.classifier_colour.parameters()))
+            ignored_params = ignored_params1 + ignored_params2 + ignored_params3 +ignored_params4 + ignored_params5
         else:
             ignored_params = ignored_params1 + ignored_params2
+    else:
+        if Config.multi:
+            ignored_params1 = list(map(id, model.module.classifier.parameters()))
+            ignored_params2 = list(map(id, model.module.classifier_brand.parameters()))
+            ignored_params3 = list(map(id, model.module.classifier_type.parameters()))
+            ignored_params4 = list(map(id, model.module.classifier_colour.parameters()))
+            ignored_params = ignored_params1 + ignored_params2 + ignored_params3 +ignored_params4
+        else:
+            ignored_params = list(map(id, model.module.classifier.parameters()))
 
 
     print('the num of new layers:', len(ignored_params), flush=True)
@@ -241,8 +278,18 @@ if __name__ == '__main__':
     lr_ratio = args.cls_lr_ratio
     base_lr = args.base_lr
     if Config.use_backbone:
-        optimizer = optim.SGD([{'params': base_params},
-                               {'params': model.module.classifier.parameters(), 'lr': base_lr}], lr = base_lr, momentum=0.9)
+        if Config.multi:
+            optimizer = optim.SGD([{'params': base_params},
+                                   {'params': model.module.classifier.parameters(), 'lr': lr_ratio*base_lr},
+                                   {'params': model.module.classifier_brand.parameters(), 'lr': lr_ratio*base_lr},
+                                   {'params': model.module.classifier_type.parameters(), 'lr': lr_ratio*base_lr},
+                                   {'params': model.module.classifier_colour.parameters(), 'lr': lr_ratio * base_lr},
+                                  ], lr = base_lr, momentum=0.9)
+        else:
+            optimizer = optim.SGD([{'params': base_params},
+                                   {'params': model.module.classifier.parameters(), 'lr': base_lr}], lr=base_lr,
+                                  momentum=0.9)
+    # TODO: 未设置相关dcl相关参数。
     else:
         if args.no_loc:
             optimizer = optim.SGD([{'params': base_params},

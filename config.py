@@ -168,7 +168,7 @@ class LoadConfig(object):
         self.use_dcl = args.use_backbone
         self.use_backbone = False if self.use_dcl else True
         print("use dcl: %s" % self.use_dcl)
-        print("use_backbone: %s" % self.use_backbone)
+        # print("use_backbone: %s" % self.use_backbone)
         self.use_Asoftmax = False
         self.use_focal_loss = False
         self.use_fpn = False

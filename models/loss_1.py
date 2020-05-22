@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class Loss_2(nn.Module):  # 1d and 2d
 
     def __init__(self, gamma=2, size_average=True):
-        super(Loss_1, self).__init__()
+        super(Loss_2, self).__init__()
         self.gamma = gamma
         self.size_average = size_average
 
